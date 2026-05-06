@@ -9,11 +9,11 @@ import {
   type OptionalSymbolArgs,
 } from "../params.js";
 
-export type OptionalRunner = (options: { cwd: string; args: string[]; timeoutMs?: number }) => Promise<RunCymbalResult>;
+export type OptionalRunner = (options: { cwd: string; args: string[]; timeoutMs?: number; signal?: AbortSignal }) => Promise<RunCymbalResult>;
 
-export async function ensureCommandAvailable(command: string, runner: OptionalRunner = runCymbal, cwd = process.cwd()): Promise<void> {
+export async function ensureCommandAvailable(command: string, runner: OptionalRunner = runCymbal, cwd = process.cwd(), signal?: AbortSignal): Promise<void> {
   try {
-    await runner({ cwd, args: [command, "--help"], timeoutMs: 5_000 });
+    await runner({ cwd, args: [command, "--help"], timeoutMs: 5_000, signal });
   } catch (error) {
     if (error instanceof CymbalError && (error.result.code === 127 || error.message.includes("Cymbal is unavailable"))) {
       throw error;
@@ -40,7 +40,7 @@ function registerOptionalTool(pi: ExtensionAPI, spec: OptionalSpec): void {
       promptSnippet: `${spec.name}: Optional Cymbal ${spec.command} helper. It checks command availability first.`,
       promptGuidelines: [`Use ${spec.name} only when Cymbal supports the ${spec.command} command.`],
       async execute(_toolCallId, params: OptionalSymbolArgs, signal, _onUpdate, ctx) {
-        await ensureCommandAvailable(spec.command, runCymbal, ctx.cwd);
+        await ensureCommandAvailable(spec.command, runCymbal, ctx.cwd, signal);
         const args = spec.buildArgs(params);
         const result = await runCymbal({ cwd: ctx.cwd, args, signal });
         return await formatCymbalOutput({ result, format: params.format ?? "agent" });

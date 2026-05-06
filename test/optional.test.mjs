@@ -21,3 +21,11 @@ test("ensureCommandAvailable preserves missing Cymbal guidance", async () => {
     /Cymbal is unavailable/,
   );
 });
+
+test("ensureCommandAvailable passes abort signal to preflight", async () => {
+  const controller = new AbortController();
+  await ensureCommandAvailable("trace", async (options) => {
+    assert.equal(options.signal, controller.signal);
+    return { command: "cymbal trace --help", args: ["trace", "--help"], cwd: ".", stdout: "usage", stderr: "", code: 0 };
+  }, ".", controller.signal);
+});
