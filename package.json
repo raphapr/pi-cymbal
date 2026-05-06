@@ -4,11 +4,26 @@
   "description": "Pi extension exposing Cymbal as an agent-native code navigation layer.",
   "type": "module",
   "license": "MIT",
-  "keywords": ["pi-package", "pi", "cymbal", "code-navigation"],
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "cymbal",
+    "code-navigation",
+    "code-search",
+    "agent-tools"
+  ],
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
   },
-  "files": ["src/", "README.md", "AGENTS.md", "tsconfig.json"],
+  "files": [
+    "src/",
+    "README.md",
+    "AGENTS.md",
+    "tsconfig.json"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"test/**/*.test.mjs\"",
@@ -28,5 +43,20 @@
     "tsx": "^4.20.0",
     "typebox": "^1.1.38",
     "typescript": "^5.9.3"
+  },
+  "author": "Raphael Ribeiro",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raphapr/pi-cymbal.git"
+  },
+  "homepage": "https://github.com/raphapr/pi-cymbal#readme",
+  "bugs": {
+    "url": "https://github.com/raphapr/pi-cymbal/issues"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -50,6 +50,23 @@ The extension runs `cymbal hook remind --format=text --update=if-stale` at sessi
 
 The extension also inspects bash tool calls with `cymbal hook nudge --format=json`. Nudges never block the original bash command.
 
+## Publishing
+
+Pi discovers public packages through npm metadata. The package must be published to npm with the `pi-package` keyword. After npm indexing, it appears on `https://pi.dev/packages` and can be installed with:
+
+```sh
+pi install npm:pi-cymbal
+```
+
+Releases publish through GitHub Actions:
+
+1. Configure npm trusted publishing for `pi-cymbal` and allow `.github/workflows/publish.yml` from this repository.
+2. Bump `package.json` version.
+3. Create a GitHub release whose tag matches the version, such as `v0.1.0`.
+4. The publish workflow runs validation and publishes with npm provenance.
+
+Use the manual `Publish to npm` workflow with `dry_run: true` to test packaging without publishing.
+
 ## Development
 
 ```sh
