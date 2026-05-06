@@ -1,6 +1,6 @@
 # pi-cymbal
 
-`pi-cymbal` gives Pi agents a Cymbal-backed code navigation layer. It exposes Cymbal's symbol index, references, impact analysis, and context commands as Pi tools, then nudges agents away from slow shell searches when Cymbal can answer faster.
+`pi-cymbal` gives [Pi](https://pi.dev) agents a [Cymbal](https://chain.sh/cymbal)-backed code navigation layer. It exposes Cymbal's symbol index, references, impact analysis, and context commands as Pi tools, then nudges agents away from slow shell searches when Cymbal can answer faster.
 
 ## What It Does
 
@@ -36,27 +36,18 @@ If Cymbal suggests a better navigation command, Pi receives a non-blocking guida
 
 ## Requirements
 
-- Pi 0.73.0 or newer.
-- Node 22.14.0 or newer.
-- A working `cymbal` binary.
+- [Pi](https://pi.dev)
+- A working [`cymbal`](https://chain.sh/cymbal) binary.
 
-Install Cymbal from the official docs, then make it available in one of these ways:
+Install Cymbal from the [official docs](https://chain.sh/cymbal), then make it available as `cymbal` on your `PATH` or set `CYMBAL_BIN` to the absolute path of the binary:
 
 ```sh
 export CYMBAL_BIN=/absolute/path/to/cymbal
 ```
 
-```sh
-ln -s /absolute/path/to/cymbal ~/.local/bin/cymbal
-```
-
-```sh
-which cymbal
-```
-
 ## Install
 
-After the package is published to npm:
+From NPM:
 
 ```sh
 pi install npm:pi-cymbal
@@ -94,20 +85,20 @@ The model decides when to call tools, but the package adds tool guidance, sessio
 
 ## Tools
 
-| Need | Pi tool | Cymbal command |
-| --- | --- | --- |
-| Repo overview | `cymbal_map` | `cymbal ls [path] --stats` |
-| Symbol search | `cymbal_search` | `cymbal search <query>` |
-| Text search | `cymbal_search` with `text: true` | `cymbal search --text <query>` |
-| File outline | `cymbal_outline` | `cymbal outline <file>` |
-| Symbol, file, or range content | `cymbal_show` | `cymbal show <target>` |
-| References | `cymbal_refs` | `cymbal refs <symbol>` |
-| Upstream impact | `cymbal_impact` | `cymbal refs <symbol> --impact` |
-| Import relationships | `cymbal_importers` | `cymbal importers <file-or-package>` |
-| Implementation relationships | `cymbal_impls` | `cymbal impls <symbol>` |
-| Guided investigation | `cymbal_investigate` | `cymbal investigate <symbol>` |
-| Call trace | `cymbal_trace` | `cymbal trace <symbol>` |
-| Context bundle | `cymbal_context` | `cymbal context <symbol>` |
+| Need                           | Pi tool                           | Cymbal command                       |
+| ------------------------------ | --------------------------------- | ------------------------------------ |
+| Repo overview                  | `cymbal_map`                      | `cymbal ls [path] --stats`           |
+| Symbol search                  | `cymbal_search`                   | `cymbal search <query>`              |
+| Text search                    | `cymbal_search` with `text: true` | `cymbal search --text <query>`       |
+| File outline                   | `cymbal_outline`                  | `cymbal outline <file>`              |
+| Symbol, file, or range content | `cymbal_show`                     | `cymbal show <target>`               |
+| References                     | `cymbal_refs`                     | `cymbal refs <symbol>`               |
+| Upstream impact                | `cymbal_impact`                   | `cymbal refs <symbol> --impact`      |
+| Import relationships           | `cymbal_importers`                | `cymbal importers <file-or-package>` |
+| Implementation relationships   | `cymbal_impls`                    | `cymbal impls <symbol>`              |
+| Guided investigation           | `cymbal_investigate`              | `cymbal investigate <symbol>`        |
+| Call trace                     | `cymbal_trace`                    | `cymbal trace <symbol>`              |
+| Context bundle                 | `cymbal_context`                  | `cymbal context <symbol>`            |
 
 The optional tools run capability checks first. If your installed Cymbal version does not support a guide-only command, the tool returns a clear unsupported-command error.
 
@@ -191,12 +182,6 @@ pi -e /home/raphael/repos/github.com/raphapr/pi-cymbal \
 ```
 
 ## Publishing
-
-Pi discovers public packages through npm metadata. The package must be published to npm with the `pi-package` keyword. After npm indexing, it appears on `https://pi.dev/packages` and can be installed with:
-
-```sh
-pi install npm:pi-cymbal
-```
 
 Releases publish through GitHub Actions:
 
