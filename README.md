@@ -1,6 +1,6 @@
 # pi-cymbal
 
-`pi-cymbal` gives [Pi](https://pi.dev) agents a [Cymbal](https://chain.sh/cymbal)-backed code navigation layer. It exposes Cymbal's symbol index, references, impact analysis, and context commands as Pi tools, then nudges agents away from slow shell searches when Cymbal can answer faster.
+`pi-cymbal` is a [Pi](https://pi.dev) extension that adds a Cymbal-powered code navigation to Pi. It exposes Cymbal's symbol index, references, impact analysis, and context commands as Pi tools, then nudges agents away from slow shell searches when Cymbal can answer faster.
 
 ## What It Does
 
@@ -36,10 +36,10 @@ If Cymbal suggests a better navigation command, Pi receives a non-blocking guida
 
 ## Requirements
 
-- [Pi](https://pi.dev)
-- A working [`cymbal`](https://chain.sh/cymbal) binary.
+- Pi
+- A working `cymbal` binary.
 
-Install Cymbal from the [official docs](https://chain.sh/cymbal), then make it available as `cymbal` on your `PATH` or set `CYMBAL_BIN` to the absolute path of the binary:
+Install Cymbal from the official docs, then make it available as `cymbal` on your `PATH` or set `CYMBAL_BIN` to the absolute path of the binary:
 
 ```sh
 export CYMBAL_BIN=/absolute/path/to/cymbal
