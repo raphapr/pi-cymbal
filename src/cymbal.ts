@@ -101,6 +101,17 @@ export function missingCymbalMessage(): string {
 export async function runProcess(options: RunProcessOptions): Promise<RunCymbalResult> {
   const command = formatCommand(options.bin, options.args);
 
+  if (options.signal?.aborted) {
+    throw new ProcessError(`${command} aborted`, {
+      command,
+      args: [...options.args],
+      cwd: options.cwd,
+      stdout: "",
+      stderr: "",
+      code: 1,
+    });
+  }
+
   return await new Promise<RunCymbalResult>((resolve, reject) => {
     const child = spawn(options.bin, options.args, {
       cwd: options.cwd,

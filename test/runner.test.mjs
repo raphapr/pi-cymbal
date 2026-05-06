@@ -45,3 +45,23 @@ test("runProcess rejects promptly on timeout", async () => {
     },
   );
 });
+
+test("runProcess rejects before spawning when signal is already aborted", async () => {
+  const controller = new AbortController();
+  controller.abort();
+
+  await assert.rejects(
+    () => runProcess({
+      bin: process.execPath,
+      args: ["-e", "process.stdout.write('ran');"],
+      cwd: process.cwd(),
+      signal: controller.signal,
+    }),
+    (error) => {
+      assert.equal(error.result.stdout, "");
+      assert.equal(error.result.code, 1);
+      assert.match(error.message, /aborted/);
+      return true;
+    },
+  );
+});
