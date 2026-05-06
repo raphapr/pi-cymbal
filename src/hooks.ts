@@ -59,7 +59,7 @@ export function createCymbalHooks(deps: HookDeps = {}) {
   let reminderText = "";
 
   return {
-    async refreshReminder(ctx: HookContext): Promise<void> {
+    async refreshReminder(ctx: HookContext): Promise<boolean> {
       try {
         const result = await run({
           cwd: ctx.cwd,
@@ -67,8 +67,10 @@ export function createCymbalHooks(deps: HookDeps = {}) {
           timeoutMs: 5_000,
         });
         reminderText = result.stdout.trim();
+        return true;
       } catch {
         reminderText = "";
+        return false;
       }
     },
 
@@ -124,8 +126,10 @@ export function registerCymbalHooks(pi: ExtensionAPI): void {
   pi.registerCommand("cymbal:remind", {
     description: "Refresh Cymbal navigation reminder guidance",
     handler: async (_args: string, ctx: HookContext) => {
-      await hooks.refreshReminder(ctx);
-      if (ctx.hasUI && ctx.ui?.notify) ctx.ui.notify("Cymbal reminder refreshed", "info");
+      const refreshed = await hooks.refreshReminder(ctx);
+      if (ctx.hasUI && ctx.ui?.notify) {
+        ctx.ui.notify(refreshed ? "Cymbal reminder refreshed" : "Cymbal reminder unavailable", refreshed ? "info" : "warning");
+      }
     },
   });
 }

@@ -34,7 +34,8 @@ test("reminder failures are swallowed", async () => {
   const hooks = createCymbalHooks({
     run: async () => { throw new Error("missing"); },
   });
-  await hooks.refreshReminder({ cwd: "." });
+  const refreshed = await hooks.refreshReminder({ cwd: "." });
+  assert.equal(refreshed, false);
   assert.deepEqual(hooks.injectReminder({ systemPrompt: "Base" }), { systemPrompt: "Base" });
 });
 

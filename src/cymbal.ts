@@ -142,8 +142,12 @@ export async function runProcess(options: RunProcessOptions): Promise<RunCymbalR
 
     const timer = options.timeoutMs
       ? setTimeout(() => {
+          if (settled) return;
           timedOut = true;
           child.kill("SIGTERM");
+          const killTimer = setTimeout(() => child.kill("SIGKILL"), 100);
+          killTimer.unref();
+          fail(new Error(`${command} timed out`), 124);
         }, options.timeoutMs)
       : undefined;
 
@@ -168,7 +172,7 @@ export async function runProcess(options: RunProcessOptions): Promise<RunCymbalR
       const exitCode = code ?? (timedOut ? 124 : 1);
       const result = resultFor(exitCode);
       if (timedOut) {
-        reject(new ProcessError(`${command} timed out`, result));
+        reject(new ProcessError(`${command} timed out`, { ...result, code: 124 }));
         return;
       }
       if (exitCode !== 0) {

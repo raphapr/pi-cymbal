@@ -59,7 +59,11 @@ test("buildImpactArgs uses refs --impact", () => {
 });
 
 test("buildImportersArgs maps graph flags", () => {
-  assert.deepEqual(buildImportersArgs({ target: "@internal/auth", depth: 2, graph: true, graphFormat: "json", graphLimit: 50 }), ["importers", "internal/auth", "--depth", "2", "--graph", "--graph-format", "json", "--graph-limit", "50"]);
+  assert.deepEqual(buildImportersArgs({ target: "internal/auth", depth: 2, graph: true, graphFormat: "json", graphLimit: 50 }), ["importers", "internal/auth", "--depth", "2", "--graph", "--graph-format", "json", "--graph-limit", "50"]);
+});
+
+test("buildImportersArgs preserves scoped package names", () => {
+  assert.deepEqual(buildImportersArgs({ target: "@mariozechner/pi-ai" }), ["importers", "@mariozechner/pi-ai"]);
 });
 
 test("buildImplsArgs requires symbol or of", () => {

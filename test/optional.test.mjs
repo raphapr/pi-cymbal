@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { CymbalError } from "../src/cymbal.ts";
 import { ensureCommandAvailable } from "../src/tools/optional.ts";
 
 test("ensureCommandAvailable returns when help succeeds", async () => {
@@ -10,5 +11,13 @@ test("ensureCommandAvailable throws clear unsupported error", async () => {
   await assert.rejects(
     () => ensureCommandAvailable("trace", async () => { throw new Error("unknown command"); }, "."),
     /does not support `cymbal trace`/,
+  );
+});
+
+test("ensureCommandAvailable preserves missing Cymbal guidance", async () => {
+  const missing = new CymbalError("Cymbal is unavailable", { command: "cymbal trace --help", args: ["trace", "--help"], cwd: ".", stdout: "", stderr: "", code: 127 });
+  await assert.rejects(
+    () => ensureCommandAvailable("trace", async () => { throw missing; }, "."),
+    /Cymbal is unavailable/,
   );
 });

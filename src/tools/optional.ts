@@ -1,5 +1,5 @@
 import { defineTool, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { runCymbal, type RunCymbalResult } from "../cymbal.js";
+import { CymbalError, runCymbal, type RunCymbalResult } from "../cymbal.js";
 import { formatCymbalOutput } from "../output.js";
 import {
   buildContextArgs,
@@ -14,7 +14,10 @@ export type OptionalRunner = (options: { cwd: string; args: string[]; timeoutMs?
 export async function ensureCommandAvailable(command: string, runner: OptionalRunner = runCymbal, cwd = process.cwd()): Promise<void> {
   try {
     await runner({ cwd, args: [command, "--help"], timeoutMs: 5_000 });
-  } catch {
+  } catch (error) {
+    if (error instanceof CymbalError && (error.result.code === 127 || error.message.includes("Cymbal is unavailable"))) {
+      throw error;
+    }
     throw new Error(`The installed Cymbal version does not support \`cymbal ${command}\`. Use documented Cymbal tools instead.`);
   }
 }

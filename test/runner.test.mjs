@@ -28,3 +28,20 @@ test("runProcess rejects non-zero exits with stdout and stderr", async () => {
     },
   );
 });
+
+test("runProcess rejects promptly on timeout", async () => {
+  const started = Date.now();
+  await assert.rejects(
+    () => runProcess({
+      bin: process.execPath,
+      args: ["-e", "process.on('SIGTERM', () => setTimeout(() => process.exit(0), 200)); setInterval(() => {}, 1000);"],
+      cwd: process.cwd(),
+      timeoutMs: 50,
+    }),
+    (error) => {
+      assert.equal(error.result.code, 124);
+      assert.ok(Date.now() - started < 180, "timeout should reject before graceful process exit");
+      return true;
+    },
+  );
+});

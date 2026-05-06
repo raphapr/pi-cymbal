@@ -237,7 +237,7 @@ export function buildImpactArgs(params: ImpactArgs): string[] {
 }
 
 export function buildImportersArgs(params: ImportersArgs): string[] {
-  const args = ["importers", normalizePathArg(params.target)];
+  const args = ["importers", params.target];
   pushNumber(args, "--depth", params.depth);
   pushGraphArgs(args, params);
   return addJson(args, params.format);
