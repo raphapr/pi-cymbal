@@ -71,6 +71,10 @@ test("buildImplsArgs requires symbol or of", () => {
   assert.deepEqual(buildImplsArgs({ of: "Reader", includeUnresolved: true }), ["impls", "--of", "Reader", "--include-unresolved"]);
 });
 
+test("buildImplsArgs does not pass unsupported depth flag", () => {
+  assert.deepEqual(buildImplsArgs({ symbol: "Reader", depth: 2 }), ["impls", "Reader"]);
+});
+
 test("optional builders map guide-only commands", () => {
   assert.deepEqual(buildInvestigateArgs({ symbol: "handleAuth", format: "json" }), ["investigate", "handleAuth", "--json"]);
   assert.deepEqual(buildTraceArgs({ symbol: "handleAuth" }), ["trace", "handleAuth"]);

@@ -67,7 +67,6 @@ export const ImportersParams = Type.Object({
 export const ImplsParams = Type.Object({
   symbol: Type.Optional(Type.String({ description: "Symbol to query." })),
   of: Type.Optional(Type.String({ description: "Find implementations of this symbol." })),
-  depth: Type.Optional(Type.Number({ description: "Traversal depth." })),
   graph: Type.Optional(Type.Boolean({ description: "Emit graph output." })),
   graphFormat: GraphFormatParam,
   graphLimit: Type.Optional(Type.Number({ description: "Graph limit." })),
@@ -142,7 +141,6 @@ export interface ImportersArgs {
 export interface ImplsArgs {
   symbol?: string;
   of?: string;
-  depth?: number;
   graph?: boolean;
   graphFormat?: "mermaid" | "dot" | "json";
   graphLimit?: number;
@@ -248,7 +246,6 @@ export function buildImplsArgs(params: ImplsArgs): string[] {
   const args = ["impls"];
   if (params.of) args.push("--of", params.of);
   if (params.symbol) args.push(params.symbol);
-  pushNumber(args, "--depth", params.depth);
   pushGraphArgs(args, params);
   if (params.includeUnresolved) args.push("--include-unresolved");
   return addJson(args, params.format);
