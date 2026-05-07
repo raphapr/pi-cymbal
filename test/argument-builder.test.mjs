@@ -30,6 +30,10 @@ test("buildSearchArgs maps symbol filters", () => {
   assert.deepEqual(buildSearchArgs({ query: "handleAuth", queries: ["UserService"], exact: true, kind: "function", lang: "typescript", limit: 10, path: ["src"], exclude: ["test"], format: "agent" }), ["search", "handleAuth", "UserService", "--exact", "--kind", "function", "--lang", "typescript", "--limit", "10", "--path", "src", "--exclude", "test"]);
 });
 
+test("buildSearchArgs quotes hyphenated symbol queries", () => {
+  assert.deepEqual(buildSearchArgs({ query: "registerCymbalHooks", queries: ["include-arguments"], limit: 20, path: "src" }), ["search", "registerCymbalHooks", "\"include-arguments\"", "--limit", "20", "--path", "src"]);
+});
+
 test("buildSearchArgs maps text search", () => {
   assert.deepEqual(buildSearchArgs({ query: "needle", text: true, path: "src", format: "json" }), ["search", "--text", "needle", "--path", "src", "--json"]);
 });

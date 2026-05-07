@@ -173,6 +173,12 @@ function pushGraphArgs(args: string[], options: { graph?: boolean; graphFormat?:
   pushNumber(args, "--graph-limit", options.graphLimit);
 }
 
+function escapeSymbolSearchQuery(query: string): string {
+  if (!/[^A-Za-z0-9_\s]/.test(query)) return query;
+  if (query.startsWith('"') && query.endsWith('"')) return query;
+  return `"${query.replaceAll('"', '""')}"`;
+}
+
 export function buildMapArgs(params: MapArgs): string[] {
   if (params.repos && (params.path !== undefined || params.depth !== undefined || params.stats !== undefined)) {
     throw new Error("repos cannot be combined with path, depth, or stats");
@@ -197,7 +203,8 @@ export function buildSearchArgs(params: SearchArgs): string[] {
     if (params.queries?.length) throw new Error("text mode accepts exactly one query");
     args.push("--text", params.query);
   } else {
-    args.push(params.query, ...(params.queries ?? []));
+    const queries = [params.query, ...(params.queries ?? [])];
+    args.push(...(params.exact ? queries : queries.map(escapeSymbolSearchQuery)));
   }
 
   if (params.exact) args.push("--exact");
