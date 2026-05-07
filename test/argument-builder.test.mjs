@@ -34,6 +34,14 @@ test("buildSearchArgs quotes hyphenated symbol queries", () => {
   assert.deepEqual(buildSearchArgs({ query: "registerCymbalHooks", queries: ["include-arguments"], limit: 20, path: "src" }), ["search", "registerCymbalHooks", "\"include-arguments\"", "--limit", "20", "--path", "src"]);
 });
 
+test("buildSearchArgs accepts additional queries without a primary query", () => {
+  assert.deepEqual(buildSearchArgs({ queries: ["n8n_business", "api_gateway_n8n_shared"], limit: 20 }), ["search", "n8n_business", "api_gateway_n8n_shared", "--limit", "20"]);
+});
+
+test("buildSearchArgs rejects empty symbol searches", () => {
+  assert.throws(() => buildSearchArgs({}), /query or queries is required/);
+});
+
 test("buildSearchArgs maps text search", () => {
   assert.deepEqual(buildSearchArgs({ query: "needle", text: true, path: "src", format: "json" }), ["search", "--text", "needle", "--path", "src", "--json"]);
 });
