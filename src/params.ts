@@ -14,7 +14,7 @@ export const MapParams = Type.Object({
 });
 
 export const SearchParams = Type.Object({
-  query: Type.String({ description: "Symbol query, or text query when text is true." }),
+  query: Type.Optional(Type.String({ description: "Symbol query, or text query when text is true." })),
   queries: Type.Optional(Type.Array(Type.String(), { description: "Additional symbol queries." })),
   text: Type.Optional(Type.Boolean({ description: "Use Cymbal full-text search." })),
   exact: Type.Optional(Type.Boolean({ description: "Exact symbol match." })),
@@ -88,7 +88,7 @@ export interface MapArgs {
 }
 
 export interface SearchArgs {
-  query: string;
+  query?: string;
   queries?: string[];
   text?: boolean;
   exact?: boolean;
@@ -200,10 +200,12 @@ export function buildSearchArgs(params: SearchArgs): string[] {
   const excludes = asArray(params.exclude).map(normalizePathArg);
 
   if (params.text) {
+    if (!params.query) throw new Error("text mode requires query");
     if (params.queries?.length) throw new Error("text mode accepts exactly one query");
     args.push("--text", params.query);
   } else {
-    const queries = [params.query, ...(params.queries ?? [])];
+    const queries = [params.query, ...(params.queries ?? [])].filter((query): query is string => Boolean(query));
+    if (!queries.length) throw new Error("query or queries is required");
     args.push(...(params.exact ? queries : queries.map(escapeSymbolSearchQuery)));
   }
 
