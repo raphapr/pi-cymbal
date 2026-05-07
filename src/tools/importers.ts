@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { buildImportersArgs, ImportersParams, type ImportersArgs } from "../params.js";
 import { registerCymbalTool } from "./common.js";
 

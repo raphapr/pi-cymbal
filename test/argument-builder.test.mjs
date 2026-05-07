@@ -75,7 +75,7 @@ test("buildImportersArgs maps graph flags", () => {
 });
 
 test("buildImportersArgs preserves scoped package names", () => {
-  assert.deepEqual(buildImportersArgs({ target: "@mariozechner/pi-ai" }), ["importers", "@mariozechner/pi-ai"]);
+  assert.deepEqual(buildImportersArgs({ target: "@earendil-works/pi-ai" }), ["importers", "@earendil-works/pi-ai"]);
 });
 
 test("buildImplsArgs requires symbol or of", () => {

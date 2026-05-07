@@ -1,4 +1,4 @@
-import { defineTool, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { runCymbal } from "../cymbal.js";
 import { formatCymbalOutput } from "../output.js";
 import { buildOutlineArgs, OutlineParams, type OutlineArgs } from "../params.js";

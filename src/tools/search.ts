@@ -1,6 +1,6 @@
 import { existsSync, statSync, type Stats } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
-import { defineTool, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { ProcessError, runCymbal, type RunCymbalResult } from "../cymbal.js";
 import { formatCymbalOutput } from "../output.js";
 import { buildSearchArgs, SearchParams, type SearchArgs } from "../params.js";

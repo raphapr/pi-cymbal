@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerCymbalHooks } from "./hooks.js";
 import { registerImpactTool } from "./tools/impact.js";
 import { registerImplsTool } from "./tools/impls.js";
