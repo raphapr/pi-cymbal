@@ -21,10 +21,13 @@ jobs:
     steps:
       - name: Checkout
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           git init .
-          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git -c http.extraheader="AUTHORIZATION: bearer ${GITHUB_TOKEN}" fetch --depth=1 origin "${GITHUB_SHA}"
+          git fetch --depth=1 \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "${GITHUB_SHA}"
           git checkout --force FETCH_HEAD
 
       - name: Setup Node
