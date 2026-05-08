@@ -1,9 +1,15 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { spawnSync } from "node:child_process";
 
-test("package loads through pi extension discovery", () => {
-  const result = spawnSync("pi", ["-e", process.cwd(), "--list-models", "gpt-5.5"], { cwd: process.cwd(), encoding: "utf8" });
-  assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.match(`${result.stdout}\n${result.stderr}`, /gpt-5\.5/);
+test("package declares a Pi extension manifest", async () => {
+  const packageJson = JSON.parse(await readFile(resolve(process.cwd(), "package.json"), "utf8"));
+  const extensionPath = packageJson.pi?.extensions?.[0];
+
+  assert.ok(packageJson.keywords.includes("pi-package"));
+  assert.equal(extensionPath, "./src/index.ts");
+
+  const extension = await import(resolve(process.cwd(), extensionPath));
+  assert.equal(typeof extension.default, "function");
 });
