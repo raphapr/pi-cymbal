@@ -16,10 +16,12 @@
   "pi": {
     "extensions": [
       "./src/index.ts"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/raphapr/pi-cymbal/main/assets/pi-cymbal-gallery.png"
   },
   "files": [
     "src/",
+    "assets/",
     "README.md",
     "AGENTS.md",
     "tsconfig.json"
