@@ -1,6 +1,9 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { runProcess } from "../src/cymbal.ts";
+import { runCymbal, runProcess } from "../src/cymbal.ts";
 
 test("runProcess writes input to stdin", async () => {
   const result = await runProcess({
@@ -64,4 +67,33 @@ test("runProcess rejects before spawning when signal is already aborted", async 
       return true;
     },
   );
+});
+
+test("runCymbal explains the Git repository requirement when Cymbal cannot detect a repo", async () => {
+  const original = process.env.CYMBAL_BIN;
+  const cwd = await mkdtemp(join(tmpdir(), "pi-cymbal-non-git-"));
+  process.env.CYMBAL_BIN = process.execPath;
+
+  try {
+    await assert.rejects(
+      () => runCymbal({
+        args: [
+          "-e",
+          "process.stderr.write('Warning: not inside a git repository — results may be empty.\\nError: no repo detected — run cymbal index <path> or use --db');process.exit(1);",
+        ],
+        cwd,
+      }),
+      (error) => {
+        assert.match(error.message, /pi-cymbal requires the current working directory to be inside a Git repository/);
+        assert.match(error.message, new RegExp(`Current cwd: ${cwd.replaceAll("/", "\\/")}`));
+        assert.match(error.message, /Use local file tools for non-Git directories/);
+        assert.equal(error.result.code, 1);
+        return true;
+      },
+    );
+  } finally {
+    if (original === undefined) delete process.env.CYMBAL_BIN;
+    else process.env.CYMBAL_BIN = original;
+    await rm(cwd, { recursive: true, force: true });
+  }
 });

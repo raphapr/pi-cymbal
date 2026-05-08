@@ -98,6 +98,20 @@ export function missingCymbalMessage(): string {
   ].join("\n");
 }
 
+export function isNoRepoDetected(result: Pick<RunCymbalResult, "stderr" | "stdout">): boolean {
+  const output = `${result.stderr}\n${result.stdout}`;
+  return output.includes("not inside a git repository") || output.includes("no repo detected");
+}
+
+export function noRepoDetectedMessage(result: Pick<RunCymbalResult, "cwd">): string {
+  return [
+    "pi-cymbal requires the current working directory to be inside a Git repository.",
+    `Current cwd: ${result.cwd}`,
+    "This extension intentionally relies on Cymbal's Git repo auto-detection and does not pass --db.",
+    "Use local file tools for non-Git directories, or run Pi from inside a Git repository.",
+  ].join("\n");
+}
+
 export async function runProcess(options: RunProcessOptions): Promise<RunCymbalResult> {
   const command = formatCommand(options.bin, options.args);
 
@@ -218,6 +232,9 @@ export async function runCymbal(options: RunCymbalOptions): Promise<RunCymbalRes
       const cause = error.cause as NodeJS.ErrnoException | undefined;
       if (cause?.code === "ENOENT" || error.result.code === 127) {
         throw new CymbalError(missingCymbalMessage(), error.result, error);
+      }
+      if (isNoRepoDetected(error.result)) {
+        throw new CymbalError(noRepoDetectedMessage(error.result), error.result, error);
       }
       const text = [
         `${error.result.command} failed (exit ${error.result.code}).`,

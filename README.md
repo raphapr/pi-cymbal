@@ -83,6 +83,12 @@ Show the implementation of cymbalExtension.
 
 The model decides when to call tools, but the package adds tool guidance, session reminders, and bash nudges to make Cymbal the default path for local code understanding.
 
+## Non-Git Directories
+
+`pi-cymbal` expects Pi's current working directory to be inside a Git repository. Cymbal can index arbitrary directories with `cymbal index <path>`, but this extension intentionally relies on Cymbal's Git repo auto-detection and does not pass `--db`.
+
+For non-Git directories, use Pi's local file tools such as `find`, `grep`, `ls`, and `read`, or start Pi from inside a Git repository.
+
 ## Tools
 
 | Need                           | Pi tool                           | Cymbal command                       |
