@@ -1,6 +1,6 @@
 {
   "name": "pi-cymbal",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Pi extension exposing Cymbal as an agent-native code navigation layer.",
   "type": "module",
   "license": "MIT",
