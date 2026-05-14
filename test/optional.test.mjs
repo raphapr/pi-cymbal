@@ -45,7 +45,22 @@ test("optional tools normalize no-result JSON output", async () => {
     { symbol: "definitely_missing_symbol_zzzz", format: "json" },
     undefined,
     undefined,
-    { cwd: process.cwd() },
+    {
+      cwd: process.cwd(),
+      runCymbal: async (options) => {
+        if (options.args[0] === "trace" && options.args[1] === "--help") {
+          return { command: "cymbal trace --help", args: options.args, cwd: options.cwd, stdout: "usage", stderr: "", code: 0 };
+        }
+        return {
+          command: `cymbal ${options.args.join(" ")}`,
+          args: options.args,
+          cwd: options.cwd,
+          stdout: "No outgoing calls found for 'definitely_missing_symbol_zzzz'.\n",
+          stderr: "",
+          code: 0,
+        };
+      },
+    },
   );
 
   assert.equal(result.details.status, "not_found");
