@@ -1,49 +1,18 @@
-import { existsSync, statSync, type Stats } from "node:fs";
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { isAbsolute, relative } from "node:path";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { ProcessError, runCymbal, type RunCymbalResult } from "../cymbal.js";
+import { isNoRepoDetected, ProcessError, runCymbal, type RunCymbalResult } from "../cymbal.js";
 import { formatCymbalOutput } from "../output.js";
 import { buildSearchArgs, SearchParams, type SearchArgs } from "../params.js";
+import { findRepoRoot, type RepoRootFs } from "./path.js";
 
 interface SearchRun {
   cwd: string;
   params: SearchArgs;
 }
 
-type StatDirectoryCheck = Pick<Stats, "isDirectory">;
-
-interface SearchFs {
-  stat: (path: string) => StatDirectoryCheck;
-  exists: (path: string) => boolean;
-}
-
-const defaultFs: SearchFs = {
-  stat: statSync,
-  exists: existsSync,
-};
-
 function asArray(path?: string | string[]): string[] {
   if (!path) return [];
   return Array.isArray(path) ? path : [path];
-}
-
-function isDirectory(path: string, fs: SearchFs): boolean {
-  try {
-    return fs.stat(path).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-function findRepoRoot(path: string, fs: SearchFs): string | undefined {
-  let current = isDirectory(path, fs) ? path : dirname(path);
-
-  for (;;) {
-    if (fs.exists(join(current, ".git"))) return current;
-    const parent = dirname(current);
-    if (parent === current) return undefined;
-    current = parent;
-  }
 }
 
 function scopedPathValue(paths: string[]): string | string[] | undefined {
@@ -51,8 +20,8 @@ function scopedPathValue(paths: string[]): string | string[] | undefined {
   return paths.length === 1 ? paths[0] : paths;
 }
 
-function absoluteValues(params: SearchArgs): string[] {
-  return [...asArray(params.path), ...asArray(params.exclude)].filter((path) => isAbsolute(path));
+function absolutePathValues(params: SearchArgs): string[] {
+  return asArray(params.path).filter((path) => isAbsolute(path));
 }
 
 function scopeFilterValue(value: string | string[] | undefined, repoRoot: string, omitRepoRoot: boolean): string | string[] | undefined {
@@ -60,6 +29,7 @@ function scopeFilterValue(value: string | string[] | undefined, repoRoot: string
     .map((path) => {
       if (!isAbsolute(path)) return path;
       const scopedPath = relative(repoRoot, path) || ".";
+      if (scopedPath.startsWith("..") || isAbsolute(scopedPath)) return path;
       return omitRepoRoot && scopedPath === "." ? undefined : scopedPath;
     })
     .filter((path): path is string => Boolean(path));
@@ -74,8 +44,8 @@ function withScopedFilter(params: SearchArgs, key: "path" | "exclude", value: st
   return next;
 }
 
-export function resolveSearchRun(params: SearchArgs, cwd: string, fs: SearchFs = defaultFs): SearchRun {
-  const absoluteFilters = absoluteValues(params);
+export function resolveSearchRun(params: SearchArgs, cwd: string, fs?: RepoRootFs): SearchRun {
+  const absoluteFilters = absolutePathValues(params);
   if (!absoluteFilters.length) return { cwd, params };
 
   const repoRoots = absoluteFilters.map((path) => findRepoRoot(path, fs));
@@ -87,17 +57,13 @@ export function resolveSearchRun(params: SearchArgs, cwd: string, fs: SearchFs =
     return { cwd: repoRoot, params: scopedParams };
   }
 
-  const paths = asArray(params.path);
-  if (paths.length === 1 && isAbsolute(paths[0]) && isDirectory(paths[0], fs)) {
-    const { path: _path, ...scopedParams } = params;
-    return { cwd: paths[0], params: scopedParams };
-  }
-
   return { cwd, params };
 }
 
 export function noResultsSearchResult(error: unknown, format?: "agent" | "json"): RunCymbalResult | undefined {
   if (!(error instanceof ProcessError)) return undefined;
+
+  if (isNoRepoDetected(error.result)) return undefined;
 
   const visibleOutput = [error.result.stdout, error.result.stderr].filter(Boolean).join("");
   if (!/no results found/i.test(visibleOutput)) return undefined;
@@ -106,6 +72,11 @@ export function noResultsSearchResult(error: unknown, format?: "agent" | "json")
     ...error.result,
     stdout: format === "json" ? '{"results":[]}\n' : visibleOutput || "No results found.\n",
     stderr: "",
+    status: "not_found",
+    diagnostics: visibleOutput
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean),
   };
 }
 

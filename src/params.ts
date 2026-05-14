@@ -34,7 +34,8 @@ export const OutlineParams = Type.Object({
 });
 
 export const ShowParams = Type.Object({
-  target: Type.String({ description: "Symbol, file path, or file range." }),
+  target: Type.Optional(Type.String({ description: "Symbol, file path, or file range." })),
+  targets: Type.Optional(Type.Array(Type.String(), { minItems: 1, description: "Symbols, file paths, or file ranges to show." })),
   context: Type.Optional(Type.Number({ description: "Context lines." })),
   format: FormatParam,
 });
@@ -108,7 +109,8 @@ export interface OutlineArgs {
 }
 
 export interface ShowArgs {
-  target: string;
+  target?: string;
+  targets?: string[];
   context?: number;
   format?: OutputFormat;
 }
@@ -200,9 +202,9 @@ export function buildSearchArgs(params: SearchArgs): string[] {
   const excludes = asArray(params.exclude).map(normalizePathArg);
 
   if (params.text) {
-    if (!params.query) throw new Error("text mode requires query");
-    if (params.queries?.length) throw new Error("text mode accepts exactly one query");
-    args.push("--text", params.query);
+    const queries = [params.query, ...(params.queries ?? [])].filter((query): query is string => Boolean(query));
+    if (!queries.length) throw new Error("text mode requires query or queries");
+    args.push("--text", queries.join(" "));
   } else {
     const queries = [params.query, ...(params.queries ?? [])].filter((query): query is string => Boolean(query));
     if (!queries.length) throw new Error("query or queries is required");
@@ -224,8 +226,16 @@ export function buildOutlineArgs(params: OutlineArgs): string[] {
   return addJson(args, params.format);
 }
 
+function showTargets(params: ShowArgs): string[] {
+  const targets = params.targets ?? [];
+  if (params.target && targets.length) throw new Error("target and targets cannot be combined");
+  if (params.target) return [params.target];
+  if (targets.length) return targets;
+  throw new Error("target or targets is required");
+}
+
 export function buildShowArgs(params: ShowArgs): string[] {
-  const args = ["show", normalizePathArg(params.target)];
+  const args = ["show", ...showTargets(params).map(normalizePathArg)];
   pushNumber(args, "--context", params.context);
   return addJson(args, params.format);
 }
@@ -240,7 +250,10 @@ export function buildRefsArgs(params: RefsArgs): string[] {
 }
 
 export function buildImpactArgs(params: ImpactArgs): string[] {
-  return buildRefsArgs({ symbol: params.symbol, impact: true, depth: params.depth, limit: params.limit, format: params.format });
+  const args = ["impact", params.symbol];
+  pushNumber(args, "--depth", params.depth);
+  pushNumber(args, "--limit", params.limit);
+  return addJson(args, params.format);
 }
 
 export function buildImportersArgs(params: ImportersArgs): string[] {

@@ -6,10 +6,10 @@ export function registerImpactTool(pi: ExtensionAPI): void {
   registerCymbalTool<ImpactArgs>(pi, {
     name: "cymbal_impact",
     label: "Cymbal Impact",
-    description: "Analyze upstream impact for a symbol through documented `cymbal refs --impact` behavior.",
+    description: "Analyze upstream impact for a symbol with `cymbal impact`.",
     parameters: ImpactParams,
     buildArgs: buildImpactArgs,
-    promptSnippet: "cymbal_impact: Analyze symbol impact through Cymbal refs --impact.",
+    promptSnippet: "cymbal_impact: Analyze symbol impact through Cymbal impact.",
     promptGuidelines: ["Use cymbal_impact before changing a local symbol with likely upstream callers."],
   });
 }

@@ -1,6 +1,8 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { CymbalError, runCymbal, type RunCymbalResult } from "../cymbal.js";
 import { formatCymbalOutput } from "../output.js";
+import type { ToolContext } from "./common.js";
+import { normalizeEmptyCymbalNotFound, recoverCymbalNotFound } from "./recovery.js";
 import {
   buildContextArgs,
   buildInvestigateArgs,
@@ -39,11 +41,18 @@ function registerOptionalTool(pi: ExtensionAPI, spec: OptionalSpec): void {
       parameters: OptionalSymbolParams,
       promptSnippet: `${spec.name}: Optional Cymbal ${spec.command} helper. It checks command availability first.`,
       promptGuidelines: [`Use ${spec.name} only when Cymbal supports the ${spec.command} command.`],
-      async execute(_toolCallId, params: OptionalSymbolArgs, signal, _onUpdate, ctx) {
-        await ensureCommandAvailable(spec.command, runCymbal, ctx.cwd, signal);
+      async execute(_toolCallId, params: OptionalSymbolArgs, signal, _onUpdate, ctx: ToolContext) {
+        const runner = ctx.runCymbal ?? runCymbal;
+        await ensureCommandAvailable(spec.command, runner, ctx.cwd, signal);
         const args = spec.buildArgs(params);
-        const result = await runCymbal({ cwd: ctx.cwd, args, signal });
-        return await formatCymbalOutput({ result, format: params.format ?? "agent" });
+        try {
+          const result = normalizeEmptyCymbalNotFound(await runner({ cwd: ctx.cwd, args, signal }), params.format);
+          return await formatCymbalOutput({ result, format: params.format ?? "agent" });
+        } catch (error) {
+          const recovered = recoverCymbalNotFound(error, { cwd: ctx.cwd, args, requestedTarget: params.symbol, format: params.format });
+          if (!recovered) throw error;
+          return await formatCymbalOutput({ result: recovered, format: params.format ?? "agent" });
+        }
       },
     }),
   );

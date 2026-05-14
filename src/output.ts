@@ -9,7 +9,7 @@ import {
   withFileMutationQueue,
   type TruncationResult,
 } from "@earendil-works/pi-coding-agent";
-import type { OutputFormat, RunCymbalResult } from "./cymbal.js";
+import type { CymbalResultStatus, OutputFormat, RunCymbalResult } from "./cymbal.js";
 
 export interface FormatCymbalOutputOptions {
   result: RunCymbalResult;
@@ -24,10 +24,16 @@ export interface CymbalOutputDetails {
   cwd: string;
   exitCode: number;
   outputFormat: OutputFormat;
+  status: CymbalResultStatus;
   parsedJson?: boolean;
   truncated: boolean;
   truncation?: TruncationResult;
   fullOutputPath?: string;
+  diagnostics?: string[];
+  suggestions?: string[];
+  requestedTarget?: string;
+  resolvedCwd?: string;
+  resolvedTarget?: string;
 }
 
 export interface CymbalToolResult {
@@ -44,8 +50,15 @@ export async function formatCymbalOutput(options: FormatCymbalOutputOptions): Pr
     cwd: options.result.cwd,
     exitCode: options.result.code,
     outputFormat: options.format,
+    status: options.result.status ?? (options.result.code === 0 ? "ok" : "error"),
     truncated: false,
   };
+
+  if (options.result.diagnostics?.length) details.diagnostics = [...options.result.diagnostics];
+  if (options.result.suggestions?.length) details.suggestions = [...options.result.suggestions];
+  if (options.result.requestedTarget) details.requestedTarget = options.result.requestedTarget;
+  if (options.result.resolvedCwd) details.resolvedCwd = options.result.resolvedCwd;
+  if (options.result.resolvedTarget) details.resolvedTarget = options.result.resolvedTarget;
 
   let visible = options.result.stdout;
   if (options.format === "json") {

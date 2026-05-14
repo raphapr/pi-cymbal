@@ -29,6 +29,8 @@ export interface RunCymbalOptions {
   input?: string;
 }
 
+export type CymbalResultStatus = "ok" | "not_found" | "unsupported" | "no_repo" | "error" | "partial" | "empty";
+
 export interface RunCymbalResult {
   command: string;
   args: string[];
@@ -36,6 +38,12 @@ export interface RunCymbalResult {
   stdout: string;
   stderr: string;
   code: number;
+  status?: CymbalResultStatus;
+  diagnostics?: string[];
+  suggestions?: string[];
+  requestedTarget?: string;
+  resolvedCwd?: string;
+  resolvedTarget?: string;
 }
 
 export class ProcessError extends Error {
