@@ -1,18 +1,18 @@
 # pi-cymbal
 
-`pi-cymbal` is a [Pi](https://pi.dev) extension that adds a Cymbal-powered code navigation to Pi. It exposes Cymbal's symbol index, references, impact analysis, and context commands as Pi tools, then nudges agents away from slow shell searches when Cymbal can answer faster.
+`pi-cymbal` is a [Pi](https://pi.dev) extension for Cymbal code navigation. It exposes symbol search, references, impact analysis, and context commands as Pi tools. It also nudges agents away from slow shell searches when Cymbal fits.
 
 ## What It Does
 
 ### Agent Tools
 
-When the agent calls a `cymbal_*` tool, the extension:
+For each `cymbal_*` tool call, the extension:
 
-1. Resolves the `cymbal` binary from `CYMBAL_BIN`, `~/.local/bin/cymbal`, or `PATH`.
-2. Builds the matching Cymbal CLI command with safe argument arrays.
-3. Runs Cymbal with deterministic agent output settings.
-4. Returns Cymbal's agent-native frontmatter output by default.
-5. Includes command metadata in `details` for debugging and traceability.
+1. Finds the `cymbal` binary from `CYMBAL_BIN`, `~/.local/bin/cymbal`, or `PATH`.
+2. Builds the Cymbal CLI command with safe argument arrays.
+3. Runs Cymbal with deterministic output settings.
+4. Returns agent-native output by default.
+5. Adds command metadata to `details`.
 
 ### Session Start
 
@@ -22,7 +22,7 @@ At `session_start`, pi-cymbal runs:
 cymbal hook remind --format=text --update=if-stale
 ```
 
-It caches the reminder and injects it before agent turns. The hook is best-effort. Missing Cymbal or hook failures do not block Pi startup.
+It caches the reminder and injects it before agent turns. Missing Cymbal or hook failures do not block Pi startup.
 
 ### Bash Tool Nudges
 
@@ -32,14 +32,14 @@ Before `bash` tool calls, pi-cymbal sends the shell command to:
 cymbal hook nudge --format=json
 ```
 
-If Cymbal suggests a better navigation command, Pi receives a non-blocking guidance message. The original bash command still runs.
+If Cymbal suggests a better navigation command, Pi receives guidance. The original bash command still runs.
 
 ## Requirements
 
 - Pi
 - A working `cymbal` binary.
 
-Install Cymbal from the official docs, then make it available as `cymbal` on your `PATH` or set `CYMBAL_BIN` to the absolute path of the binary:
+Install Cymbal from the official docs. Put `cymbal` on `PATH`, or set `CYMBAL_BIN`:
 
 ```sh
 export CYMBAL_BIN=/absolute/path/to/cymbal
@@ -67,7 +67,7 @@ pi -e /home/raphael/repos/github.com/raphapr/pi-cymbal
 
 ## Quick Start
 
-Ask Pi for local code navigation in plain language:
+Ask Pi to use Cymbal:
 
 ```text
 Use Cymbal to map this repo before editing.
@@ -81,13 +81,13 @@ Find references to registerCymbalHooks with Cymbal.
 Show the implementation of cymbalExtension.
 ```
 
-The model decides when to call tools, but the package adds tool guidance, session reminders, and bash nudges to make Cymbal the default path for local code understanding.
+Tool prompts, session reminders, and bash nudges steer agents toward Cymbal when it fits.
 
-## Non-Git Directories
+## Repository and Path Scope
 
-`pi-cymbal` expects Pi's current working directory to be inside a Git repository. Cymbal can index arbitrary directories with `cymbal index <path>`, but this extension intentionally relies on Cymbal's Git repo auto-detection and does not pass `--db`.
+Indexed Cymbal commands work best from a Git repository. For absolute paths inside another Git repo, pi-cymbal changes the Cymbal cwd to that repo root and passes repo-relative paths. This applies to `cymbal_map`, `cymbal_search` path filters, `cymbal_show`, `cymbal_outline`, and `cymbal_importers`.
 
-For non-Git directories, use Pi's local file tools such as `find`, `grep`, `ls`, and `read`, or start Pi from inside a Git repository.
+pi-cymbal relies on Cymbal's Git repo auto-detection and does not pass `--db`. Cymbal can still handle some absolute path reads outside a Git cwd. For non-Git directories, use Pi file tools such as `find`, `grep`, `ls`, and `read` when Cymbal reports that no repo was detected.
 
 ## Tools
 
@@ -99,14 +99,14 @@ For non-Git directories, use Pi's local file tools such as `find`, `grep`, `ls`,
 | File outline                   | `cymbal_outline`                  | `cymbal outline <file>`              |
 | Symbol, file, or range content | `cymbal_show`                     | `cymbal show <target>`               |
 | References                     | `cymbal_refs`                     | `cymbal refs <symbol>`               |
-| Upstream impact                | `cymbal_impact`                   | `cymbal refs <symbol> --impact`      |
+| Upstream impact                | `cymbal_impact`                   | `cymbal impact <symbol>`             |
 | Import relationships           | `cymbal_importers`                | `cymbal importers <file-or-package>` |
 | Implementation relationships   | `cymbal_impls`                    | `cymbal impls <symbol>`              |
 | Guided investigation           | `cymbal_investigate`              | `cymbal investigate <symbol>`        |
 | Call trace                     | `cymbal_trace`                    | `cymbal trace <symbol>`              |
 | Context bundle                 | `cymbal_context`                  | `cymbal context <symbol>`            |
 
-The optional tools run capability checks first. If your installed Cymbal version does not support a guide-only command, the tool returns a clear unsupported-command error.
+Optional tools check command support first. If Cymbal lacks a guide-only command, the tool returns an unsupported-command error.
 
 ## Tool Details
 
@@ -128,26 +128,26 @@ Use for symbol or text search.
 Common parameters:
 
 - `query`: symbol query, or text query when `text` is true.
-- `queries`: additional symbol queries.
+- `queries`: additional symbol queries. In text mode, Cymbal treats them as more words in the same pattern.
 - `text`: use Cymbal full-text search.
 - `exact`, `kind`, `lang`, `limit`: filters.
 - `path`, `exclude`: include or exclude path globs.
 
 ### `cymbal_outline`
 
-Use before reading full files. The Pi tool accepts multiple files. Cymbal currently accepts one file per CLI call, so pi-cymbal runs one command per file and combines the output.
+Use before reading full files. pi-cymbal runs one outline command per file because Cymbal accepts one file per call. Files with no outline symbols produce partial output when other files succeed.
 
 ### `cymbal_show`
 
-Use for targeted reads. Targets can be symbols, files, or ranges such as `src/index.ts:1-40`.
+Use for targeted reads. Targets can be symbols, files, or ranges such as `src/index.ts:1-40`. Pass `targets` to read several targets in one call. Missing targets produce partial output when other targets succeed. Split JSON calls when absolute targets point at a different repo than relative or symbol targets, or when absolute targets span repos.
 
 ### Relationship Tools
 
-Use `cymbal_refs`, `cymbal_impact`, `cymbal_importers`, and `cymbal_impls` before refactors. Graph output is available where Cymbal supports it through `graph`, `graphFormat`, and `graphLimit`.
+Use `cymbal_refs`, `cymbal_impact`, `cymbal_importers`, and `cymbal_impls` before refactors. Use `graph`, `graphFormat`, and `graphLimit` where Cymbal supports graph output.
 
 ## Output Format
 
-Tools default to Cymbal's agent-native output because it is compact and readable by models.
+Tools default to Cymbal's compact agent-native output.
 
 Pass `format: "json"` to request machine-readable output:
 
@@ -155,7 +155,9 @@ Pass `format: "json"` to request machine-readable output:
 Use cymbal_search with format json to find registerCymbalHooks.
 ```
 
-Large outputs are truncated before returning to the model. When truncation happens, the full output is written to a temp file and the path is included in tool details.
+Large outputs are truncated. Tool details include a temp-file path with the full output.
+
+Recoverable misses such as "no results found" and "file not found" return normal tool results with `details.status = "not_found"`. Path-like misses include nearby file suggestions when pi-cymbal can find them. Repository-boundary errors remain errors.
 
 ## Environment Variables
 
@@ -173,13 +175,13 @@ npm test
 npm pack --dry-run
 ```
 
-Run the full local validation suite:
+Run full validation:
 
 ```sh
 npm run validate
 ```
 
-Try the package through Pi:
+Try it through Pi:
 
 ```sh
 pi -e /home/raphael/repos/github.com/raphapr/pi-cymbal \
@@ -189,14 +191,14 @@ pi -e /home/raphael/repos/github.com/raphapr/pi-cymbal \
 
 ## Publishing
 
-Releases publish through GitHub Actions:
+GitHub Actions publishes releases:
 
 1. Configure npm trusted publishing for `pi-cymbal` and allow `.github/workflows/publish.yml` from this repository.
 2. Bump `package.json` version.
 3. Create a GitHub release whose tag matches the version, such as `v0.1.0`.
 4. The publish workflow runs validation and publishes with npm provenance.
 
-Use the manual `Publish to npm` workflow with `dry_run: true` to test packaging without publishing.
+Use the manual `Publish to npm` workflow with `dry_run: true` to test packaging.
 
 ## License
 
