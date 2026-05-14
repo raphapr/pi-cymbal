@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { dirname } from "node:path";
-import { ProcessError } from "../src/cymbal.ts";
+import { CymbalError, ProcessError } from "../src/cymbal.ts";
 import { noResultsSearchResult, resolveSearchRun } from "../src/tools/search.ts";
 
 function fakeFs({ directories = [], files = [], repoRoots = [] }) {
@@ -71,15 +71,26 @@ test("resolveSearchRun converts absolute exclude filters under the selected repo
   assert.deepEqual(run.params, { query: "registerSearchTool", path: "src", exclude: "src/generated" });
 });
 
-test("resolveSearchRun uses an absolute exclude to select the repo when path is relative", () => {
+test("resolveSearchRun does not use absolute exclude filters to select the repo", () => {
   const run = resolveSearchRun(
     { query: "registerSearchTool", path: "src", exclude: "/repo/pi-cymbal/test" },
     "/repo/other",
     fakeFs({ directories: ["/repo/pi-cymbal/test", "/repo/pi-cymbal"], repoRoots: ["/repo/pi-cymbal"] }),
   );
 
+  assert.equal(run.cwd, "/repo/other");
+  assert.deepEqual(run.params, { query: "registerSearchTool", path: "src", exclude: "/repo/pi-cymbal/test" });
+});
+
+test("resolveSearchRun does not switch to a non-Git absolute path", () => {
+  const run = resolveSearchRun(
+    { query: "registerSearchTool", path: "/tmp/notrepo" },
+    "/repo/pi-cymbal",
+    fakeFs({ directories: ["/tmp/notrepo"], repoRoots: [] }),
+  );
+
   assert.equal(run.cwd, "/repo/pi-cymbal");
-  assert.deepEqual(run.params, { query: "registerSearchTool", path: "src", exclude: "test" });
+  assert.deepEqual(run.params, { query: "registerSearchTool", path: "/tmp/notrepo" });
 });
 
 test("resolveSearchRun keeps relative paths as Cymbal path filters", () => {
@@ -120,4 +131,17 @@ test("noResultsSearchResult returns JSON output for JSON callers", () => {
 
   assert.deepEqual(JSON.parse(result?.stdout ?? ""), { results: [] });
   assert.equal(result?.stderr, "");
+});
+
+test("noResultsSearchResult preserves no-repo errors", () => {
+  const error = new CymbalError("pi-cymbal requires a Git repository", {
+    command: "cymbal search missing",
+    args: ["search", "missing"],
+    cwd: "/tmp",
+    stdout: "missing: no results found\n",
+    stderr: "Warning: not inside a git repository — results may be empty.\nError: no results found for 'missing'\n",
+    code: 1,
+  });
+
+  assert.equal(noResultsSearchResult(error), undefined);
 });

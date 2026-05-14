@@ -45,3 +45,26 @@ test("formatCymbalOutput truncates large output and writes full text", async () 
   assert.ok(result.details.fullOutputPath);
   assert.equal(await readFile(result.details.fullOutputPath, "utf8"), text);
 });
+
+test("formatCymbalOutput carries structured recovery metadata", async () => {
+  const result = await formatCymbalOutput({
+    result: {
+      command: "cymbal show missing.ts",
+      args: ["show", "missing.ts"],
+      cwd: ".",
+      stdout: "No Cymbal target resolved for `missing.ts`.\n",
+      stderr: "",
+      code: 1,
+      status: "not_found",
+      requestedTarget: "missing.ts",
+      suggestions: ["src/missing.ts"],
+      diagnostics: ["Error: no requested symbol or file resolved"],
+    },
+    format: "agent",
+  });
+
+  assert.equal(result.details.status, "not_found");
+  assert.equal(result.details.requestedTarget, "missing.ts");
+  assert.deepEqual(result.details.suggestions, ["src/missing.ts"]);
+  assert.deepEqual(result.details.diagnostics, ["Error: no requested symbol or file resolved"]);
+});

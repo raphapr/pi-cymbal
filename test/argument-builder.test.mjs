@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Check } from "typebox/value";
 import {
   buildContextArgs,
   buildImplsArgs,
@@ -12,6 +13,7 @@ import {
   buildSearchArgs,
   buildShowArgs,
   buildTraceArgs,
+  ShowParams,
 } from "../src/params.ts";
 
 test("buildMapArgs maps stats and depth", () => {
@@ -46,8 +48,8 @@ test("buildSearchArgs maps text search", () => {
   assert.deepEqual(buildSearchArgs({ query: "needle", text: true, path: "src", format: "json" }), ["search", "--text", "needle", "--path", "src", "--json"]);
 });
 
-test("buildSearchArgs rejects batch text search", () => {
-  assert.throws(() => buildSearchArgs({ query: "needle", queries: ["other"], text: true }), /text mode accepts exactly one query/);
+test("buildSearchArgs joins text search query words", () => {
+  assert.deepEqual(buildSearchArgs({ query: "needle", queries: ["other"], text: true }), ["search", "--text", "needle other"]);
 });
 
 test("buildOutlineArgs maps files and signatures", () => {
@@ -58,6 +60,26 @@ test("buildShowArgs maps context", () => {
   assert.deepEqual(buildShowArgs({ target: "@src/index.ts:1-10", context: 3, format: "json" }), ["show", "src/index.ts:1-10", "--context", "3", "--json"]);
 });
 
+test("buildShowArgs maps multiple targets", () => {
+  assert.deepEqual(buildShowArgs({ targets: ["@src/index.ts", "src/output.ts"], context: 2, format: "json" }), ["show", "src/index.ts", "src/output.ts", "--context", "2", "--json"]);
+});
+
+test("buildShowArgs rejects invalid target combinations", () => {
+  assert.throws(() => buildShowArgs({}), /target or targets is required/);
+  assert.throws(() => buildShowArgs({ targets: [] }), /target or targets is required/);
+  assert.throws(() => buildShowArgs({ target: "src/index.ts", targets: ["src/output.ts"] }), /target and targets cannot be combined/);
+});
+
+test("ShowParams exposes top-level properties for Pi tool adapters", () => {
+  assert.equal(ShowParams.type, "object");
+  assert.ok(ShowParams.properties?.target);
+  assert.ok(ShowParams.properties?.targets);
+  assert.equal(ShowParams.anyOf, undefined);
+  assert.equal(Check(ShowParams, { target: "src/index.ts" }), true);
+  assert.equal(Check(ShowParams, { targets: ["src/index.ts"] }), true);
+  assert.equal(Check(ShowParams, { targets: [] }), false);
+});
+
 test("buildRefsArgs maps impact depth and limit", () => {
   assert.deepEqual(buildRefsArgs({ symbol: "handleAuth", impact: true, depth: 2, limit: 20 }), ["refs", "handleAuth", "--impact", "--depth", "2", "--limit", "20"]);
 });
@@ -66,8 +88,8 @@ test("buildRefsArgs does not pass depth without importers or impact", () => {
   assert.deepEqual(buildRefsArgs({ symbol: "handleAuth", depth: 2 }), ["refs", "handleAuth"]);
 });
 
-test("buildImpactArgs uses refs --impact", () => {
-  assert.deepEqual(buildImpactArgs({ symbol: "handleAuth", depth: 2, format: "json" }), ["refs", "handleAuth", "--impact", "--depth", "2", "--json"]);
+test("buildImpactArgs uses cymbal impact", () => {
+  assert.deepEqual(buildImpactArgs({ symbol: "handleAuth", depth: 2, limit: 5, format: "json" }), ["impact", "handleAuth", "--depth", "2", "--limit", "5", "--json"]);
 });
 
 test("buildImportersArgs maps graph flags", () => {
