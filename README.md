@@ -52,23 +52,23 @@ Show the implementation of cymbalExtension.
 
 ## Tools
 
-| Need                           | Pi tool                           | Cymbal command                       |
-| ------------------------------ | --------------------------------- | ------------------------------------ |
-| Repo overview                  | `cymbal_map`                      | `cymbal ls [path] --stats`           |
-| Structural summary             | `cymbal_structure`                | `cymbal structure`                   |
-| Symbol search                  | `cymbal_search`                   | `cymbal search <query>`              |
-| Text search                    | `cymbal_search` with `text: true` | `cymbal search --text <query>`       |
-| File outline                   | `cymbal_outline`                  | `cymbal outline <file>`              |
-| Symbol, file, or range content | `cymbal_show`                     | `cymbal show <target>`               |
-| References                     | `cymbal_refs`                     | `cymbal refs <symbol>`               |
-| Upstream impact                | `cymbal_impact`                   | `cymbal impact <symbol>`             |
-| Import relationships           | `cymbal_importers`                | `cymbal importers <file-or-package>` |
-| Implementation relationships   | `cymbal_impls`                    | `cymbal impls <symbol>`              |
-| Symbol diff                    | `cymbal_diff`                     | `cymbal diff <symbol> [base]`        |
-| Explicit index refresh         | `cymbal_index`                    | `cymbal index [path]`                |
-| Guided investigation           | `cymbal_investigate`              | `cymbal investigate <symbol>`        |
-| Call trace                     | `cymbal_trace`                    | `cymbal trace <symbol>`              |
-| Context bundle                 | `cymbal_context`                  | `cymbal context <symbol>`            |
+| Need | Pi tool | Cymbal command |
+| --- | --- | --- |
+| Repo overview | `cymbal_map` | `cymbal ls [path] --stats` |
+| Structural summary | `cymbal_structure` | `cymbal structure` |
+| Symbol search | `cymbal_search` | `cymbal search <query>` |
+| Text search | `cymbal_search` with `text: true` | `cymbal search --text <query>` |
+| File outline | `cymbal_outline` | `cymbal outline <file>` |
+| Symbol, file, or range content | `cymbal_show` | `cymbal show <target>` |
+| References | `cymbal_refs` | `cymbal refs <symbol>` |
+| Upstream impact | `cymbal_impact` | `cymbal impact <symbol>` |
+| Import relationships | `cymbal_importers` | `cymbal importers <file-or-package>` |
+| Implementation relationships | `cymbal_impls` | `cymbal impls <symbol>` |
+| Symbol diff | `cymbal_diff` | `cymbal diff <symbol> [base]` |
+| Explicit index refresh | `cymbal_index` | `cymbal index [path]` |
+| Guided investigation | `cymbal_investigate` | `cymbal investigate <symbol>` |
+| Call trace | `cymbal_trace` | `cymbal trace <symbol>` |
+| Context bundle | `cymbal_context` | `cymbal context <symbol>` |
 
 Newer Cymbal commands check support first. If the installed Cymbal version lacks a command, the tool returns an unsupported-command error.
 
@@ -138,7 +138,7 @@ Before eligible `bash` and `grep` calls, it runs:
 cymbal hook nudge --format=json
 ```
 
-Nudges are advisory. The original tool still runs. Identical suggestions are suppressed for 60 seconds per cwd.
+Nudges are advisory. The original tool still runs. They are not rendered in the TUI and appear as UI notifications when available. Identical suggestions are suppressed for 60 seconds per cwd.
 
 ## Paths and Repos
 
