@@ -49,12 +49,6 @@ export function buildNudgePayload(toolName: string, input: unknown): string | un
     return JSON.stringify({ tool_name: "Grep", tool_input: toolInput });
   }
 
-  if (toolName === "read") {
-    const { path } = input;
-    if (typeof path !== "string" || !path.trim()) return undefined;
-    return JSON.stringify({ tool_name: "Read", tool_input: { file_path: path } });
-  }
-
   return undefined;
 }
 
@@ -143,7 +137,7 @@ export function createCymbalHooks(deps: HookDeps = {}) {
         if (!suggestion || shouldSuppressSuggestion(ctx.cwd, suggestion.suggest)) return;
 
         const content = buildNudgeMessage(suggestion);
-        await deps.sendMessage?.({ customType: "pi-cymbal-nudge", content, display: true });
+        await deps.sendMessage?.({ customType: "pi-cymbal-nudge", content, display: false });
         if (ctx.hasUI && ctx.ui?.notify) ctx.ui.notify(content, "info");
       } catch {
         return;

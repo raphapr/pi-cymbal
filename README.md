@@ -132,7 +132,7 @@ At session start, pi-cymbal runs:
 cymbal hook remind --format=text --update=if-stale
 ```
 
-Before eligible `bash`, `grep`, and `read` calls, it runs:
+Before eligible `bash` and `grep` calls, it runs:
 
 ```sh
 cymbal hook nudge --format=json

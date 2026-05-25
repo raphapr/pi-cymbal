@@ -17,11 +17,9 @@ test("buildNudgePayload maps grep input with Cymbal casing and fields", () => {
   );
 });
 
-test("buildNudgePayload maps read input with Cymbal casing and fields", () => {
-  assert.equal(
-    buildNudgePayload("read", { path: "src/hooks.ts" }),
-    JSON.stringify({ tool_name: "Read", tool_input: { file_path: "src/hooks.ts" } }),
-  );
+test("buildNudgePayload does not nudge read calls", () => {
+  assert.equal(buildNudgePayload("read", { path: "src/hooks.ts" }), undefined);
+  assert.equal(buildNudgePayload("Read", { file_path: "src/hooks.ts" }), undefined);
 });
 
 test("buildNudgePayload returns undefined for unsupported tools", () => {
@@ -36,9 +34,8 @@ test("buildNudgePayload returns undefined for malformed input", () => {
   assert.equal(buildNudgePayload("read", { path: "" }), undefined);
 });
 
-test("buildNudgePayload uses exact Grep and Read payload casing", () => {
+test("buildNudgePayload uses exact Grep payload casing", () => {
   assert.equal(JSON.parse(buildNudgePayload("grep", { pattern: "auth" })).tool_name, "Grep");
-  assert.equal(JSON.parse(buildNudgePayload("read", { path: "README.md" })).tool_name, "Read");
 });
 
 test("parseNudgeResponse extracts suggestion", () => {
@@ -70,7 +67,7 @@ test("reminder failures are swallowed", async () => {
   assert.deepEqual(hooks.injectReminder({ systemPrompt: "Base" }), { systemPrompt: "Base" });
 });
 
-test("nudge sends advisory steering message without blocking", async () => {
+test("nudge sends hidden advisory steering message without blocking", async () => {
   const messages = [];
   const hooks = createCymbalHooks({
     run: async (_options) => ({ command: "cymbal hook nudge", args: ["hook", "nudge", "--format=json"], cwd: ".", stdout: '{"suggest":"Use cymbal_search","why":"better index","tool":"cymbal_search"}', stderr: "", code: 0 }),
@@ -78,8 +75,26 @@ test("nudge sends advisory steering message without blocking", async () => {
   });
   await hooks.handleToolCall({ toolName: "bash", input: { command: "rg -n auth ." } }, { cwd: "." });
   assert.equal(messages.length, 1);
+  assert.equal(messages[0].display, false);
   assert.match(messages[0].content, /Use cymbal_search/);
   assert.match(messages[0].content, /Use this if it fits; ignore it if your original tool is intentional\./);
+});
+
+test("nudge shows UI notification when UI is available", async () => {
+  const notifications = [];
+  const hooks = createCymbalHooks({
+    run: async (_options) => ({ command: "cymbal hook nudge", args: ["hook", "nudge", "--format=json"], cwd: ".", stdout: '{"suggest":"Use cymbal_search auth","why":"symbol search","tool":"cymbal_search"}', stderr: "", code: 0 }),
+  });
+  await hooks.handleToolCall(
+    { toolName: "grep", input: { pattern: "auth" } },
+    { cwd: ".", hasUI: true, ui: { notify: (message, type) => notifications.push({ message, type }) } },
+  );
+  assert.deepEqual(notifications, [
+    {
+      message: "Cymbal suggests: Use cymbal_search auth\nUse this if it fits; ignore it if your original tool is intentional.\nWhy: symbol search\nTool: cymbal_search",
+      type: "info",
+    },
+  ]);
 });
 
 test("nudge sends grep payload with Cymbal casing and fields", async () => {
@@ -94,16 +109,13 @@ test("nudge sends grep payload with Cymbal casing and fields", async () => {
   assert.deepEqual(JSON.parse(payloads[0]), { tool_name: "Grep", tool_input: { pattern: "auth", glob: "src/**/*.ts" } });
 });
 
-test("nudge sends read payload with Cymbal casing and fields", async () => {
-  const payloads = [];
+test("nudge skips read calls", async () => {
+  let called = false;
   const hooks = createCymbalHooks({
-    run: async (options) => {
-      payloads.push(options.input);
-      return { command: "cymbal hook nudge", args: options.args, cwd: options.cwd, stdout: "", stderr: "", code: 0 };
-    },
+    run: async () => { called = true; throw new Error("should not run"); },
   });
   await hooks.handleToolCall({ toolName: "read", input: { path: "src/hooks.ts" } }, { cwd: "." });
-  assert.deepEqual(JSON.parse(payloads[0]), { tool_name: "Read", tool_input: { file_path: "src/hooks.ts" } });
+  assert.equal(called, false);
 });
 
 test("nudge ignores unsupported tools and malformed input", async () => {
@@ -142,7 +154,7 @@ test("nudge suppresses duplicate suggestions per cwd for 60 seconds", async () =
   currentTime += 1_001;
   await hooks.handleToolCall({ toolName: "grep", input: { pattern: "auth" } }, { cwd: "/repo-a" });
 
-  assert.equal(messages.length, 3);
+  assert.equal(messages.length, 2);
 });
 
 test("hooks only invoke remind or nudge commands and never index", async () => {
