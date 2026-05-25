@@ -1,40 +1,12 @@
-import { isAbsolute, relative } from "node:path";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isNoRepoDetected, ProcessError, runCymbal, type RunCymbalResult } from "../cymbal.js";
 import { formatCymbalOutput } from "../output.js";
 import { buildSearchArgs, SearchParams, type SearchArgs } from "../params.js";
-import { findRepoRoot, type RepoRootFs } from "./path.js";
+import { resolvePathFilterRun, type RepoRootFs } from "./path.js";
 
 interface SearchRun {
   cwd: string;
   params: SearchArgs;
-}
-
-function asArray(path?: string | string[]): string[] {
-  if (!path) return [];
-  return Array.isArray(path) ? path : [path];
-}
-
-function scopedPathValue(paths: string[]): string | string[] | undefined {
-  if (!paths.length) return undefined;
-  return paths.length === 1 ? paths[0] : paths;
-}
-
-function absolutePathValues(params: SearchArgs): string[] {
-  return asArray(params.path).filter((path) => isAbsolute(path));
-}
-
-function scopeFilterValue(value: string | string[] | undefined, repoRoot: string, omitRepoRoot: boolean): string | string[] | undefined {
-  const scoped = asArray(value)
-    .map((path) => {
-      if (!isAbsolute(path)) return path;
-      const scopedPath = relative(repoRoot, path) || ".";
-      if (scopedPath.startsWith("..") || isAbsolute(scopedPath)) return path;
-      return omitRepoRoot && scopedPath === "." ? undefined : scopedPath;
-    })
-    .filter((path): path is string => Boolean(path));
-
-  return scopedPathValue(scoped);
 }
 
 function withScopedFilter(params: SearchArgs, key: "path" | "exclude", value: string | string[] | undefined): SearchArgs {
@@ -45,19 +17,14 @@ function withScopedFilter(params: SearchArgs, key: "path" | "exclude", value: st
 }
 
 export function resolveSearchRun(params: SearchArgs, cwd: string, fs?: RepoRootFs): SearchRun {
-  const absoluteFilters = absolutePathValues(params);
-  if (!absoluteFilters.length) return { cwd, params };
-
-  const repoRoots = absoluteFilters.map((path) => findRepoRoot(path, fs));
-  const repoRoot = repoRoots[0];
-  if (repoRoot && repoRoots.every((root) => root === repoRoot)) {
-    const scopedPath = scopeFilterValue(params.path, repoRoot, true);
-    const scopedExclude = scopeFilterValue(params.exclude, repoRoot, false);
-    const scopedParams = withScopedFilter(withScopedFilter(params, "path", scopedPath), "exclude", scopedExclude);
-    return { cwd: repoRoot, params: scopedParams };
-  }
-
-  return { cwd, params };
+  return resolvePathFilterRun(params, cwd, {
+    path: params.path,
+    exclude: params.exclude,
+    applyPath: (next, value) => withScopedFilter(next, "path", value),
+    applyExclude: (next, value) => withScopedFilter(next, "exclude", value),
+    fs,
+    errorPrefix: "cymbal_search",
+  });
 }
 
 export function noResultsSearchResult(error: unknown, format?: "agent" | "json"): RunCymbalResult | undefined {

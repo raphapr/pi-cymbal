@@ -82,6 +82,24 @@ test("resolveSearchRun does not use absolute exclude filters to select the repo"
   assert.deepEqual(run.params, { query: "registerSearchTool", path: "src", exclude: "/repo/pi-cymbal/test" });
 });
 
+test("resolveSearchRun leaves cross-repo absolute include filters as pass-through", () => {
+  const run = resolveSearchRun(
+    { query: "registerSearchTool", path: ["/repo/first/src", "/repo/second/src"] },
+    "/repo/pi-cymbal",
+    fakeFs({ directories: ["/repo/first/src", "/repo/first", "/repo/second/src", "/repo/second"], repoRoots: ["/repo/first", "/repo/second"] }),
+  );
+
+  assert.equal(run.cwd, "/repo/pi-cymbal");
+  assert.deepEqual(run.params, { query: "registerSearchTool", path: ["/repo/first/src", "/repo/second/src"] });
+});
+
+test("resolveSearchRun keeps relative glob filters unchanged", () => {
+  const run = resolveSearchRun({ query: "registerSearchTool", path: "src/**/*.ts", exclude: "**/*.test.ts" }, "/repo/pi-cymbal");
+
+  assert.equal(run.cwd, "/repo/pi-cymbal");
+  assert.deepEqual(run.params, { query: "registerSearchTool", path: "src/**/*.ts", exclude: "**/*.test.ts" });
+});
+
 test("resolveSearchRun does not switch to a non-Git absolute path", () => {
   const run = resolveSearchRun(
     { query: "registerSearchTool", path: "/tmp/notrepo" },

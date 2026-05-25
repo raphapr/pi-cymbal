@@ -1,53 +1,22 @@
 # pi-cymbal
 
-`pi-cymbal` is a [Pi](https://pi.dev) extension for Cymbal code navigation. It exposes symbol search, references, impact analysis, and context commands as Pi tools. It also nudges agents away from slow shell searches when Cymbal fits.
+Pi extension for Cymbal code navigation.
 
-## What It Does
-
-### Agent Tools
-
-For each `cymbal_*` tool call, the extension:
-
-1. Finds the `cymbal` binary from `CYMBAL_BIN`, `~/.local/bin/cymbal`, or `PATH`.
-2. Builds the Cymbal CLI command with safe argument arrays.
-3. Runs Cymbal with deterministic output settings.
-4. Returns agent-native output by default.
-5. Adds command metadata to `details`.
-
-### Session Start
-
-At `session_start`, pi-cymbal runs:
-
-```sh
-cymbal hook remind --format=text --update=if-stale
-```
-
-It caches the reminder and injects it before agent turns. Missing Cymbal or hook failures do not block Pi startup.
-
-### Bash Tool Nudges
-
-Before `bash` tool calls, pi-cymbal sends the shell command to:
-
-```sh
-cymbal hook nudge --format=json
-```
-
-If Cymbal suggests a better navigation command, Pi receives guidance. The original bash command still runs.
+It adds `cymbal_*` tools to Pi so agents can search symbols, read focused code, inspect references, and review symbol-scoped diffs without falling back to broad shell commands.
 
 ## Requirements
 
 - Pi
-- A working `cymbal` binary.
-
-Install Cymbal from the official docs. Put `cymbal` on `PATH`, or set `CYMBAL_BIN`:
+- `cymbal` on `PATH`, or `CYMBAL_BIN` set
+- Cymbal `v0.13.5+` for the full tool set
 
 ```sh
 export CYMBAL_BIN=/absolute/path/to/cymbal
 ```
 
-## Install
+Older Cymbal versions may still support the original navigation tools. `structure`, `diff`, `index`, and newer flags need `v0.13.5+`.
 
-From NPM:
+## Install
 
 ```sh
 pi install npm:pi-cymbal
@@ -59,15 +28,15 @@ From GitHub:
 pi install git:github.com/raphapr/pi-cymbal
 ```
 
-For local development:
+Local development:
 
 ```sh
-pi -e /home/raphael/repos/github.com/raphapr/pi-cymbal
+pi --no-extensions -e /home/raphael/repos/github.com/raphapr/pi-cymbal
 ```
 
-## Quick Start
+`--no-extensions` avoids conflicts with an already installed `pi-cymbal`.
 
-Ask Pi to use Cymbal:
+## Quick Start
 
 ```text
 Use Cymbal to map this repo before editing.
@@ -81,19 +50,12 @@ Find references to registerCymbalHooks with Cymbal.
 Show the implementation of cymbalExtension.
 ```
 
-Tool prompts, session reminders, and bash nudges steer agents toward Cymbal when it fits.
-
-## Repository and Path Scope
-
-Indexed Cymbal commands work best from a Git repository. For absolute paths inside another Git repo, pi-cymbal changes the Cymbal cwd to that repo root and passes repo-relative paths. This applies to `cymbal_map`, `cymbal_search` path filters, `cymbal_show`, `cymbal_outline`, and `cymbal_importers`.
-
-pi-cymbal relies on Cymbal's Git repo auto-detection and does not pass `--db`. Cymbal can still handle some absolute path reads outside a Git cwd. For non-Git directories, use Pi file tools such as `find`, `grep`, `ls`, and `read` when Cymbal reports that no repo was detected.
-
 ## Tools
 
 | Need                           | Pi tool                           | Cymbal command                       |
 | ------------------------------ | --------------------------------- | ------------------------------------ |
 | Repo overview                  | `cymbal_map`                      | `cymbal ls [path] --stats`           |
+| Structural summary             | `cymbal_structure`                | `cymbal structure`                   |
 | Symbol search                  | `cymbal_search`                   | `cymbal search <query>`              |
 | Text search                    | `cymbal_search` with `text: true` | `cymbal search --text <query>`       |
 | File outline                   | `cymbal_outline`                  | `cymbal outline <file>`              |
@@ -102,54 +64,100 @@ pi-cymbal relies on Cymbal's Git repo auto-detection and does not pass `--db`. C
 | Upstream impact                | `cymbal_impact`                   | `cymbal impact <symbol>`             |
 | Import relationships           | `cymbal_importers`                | `cymbal importers <file-or-package>` |
 | Implementation relationships   | `cymbal_impls`                    | `cymbal impls <symbol>`              |
+| Symbol diff                    | `cymbal_diff`                     | `cymbal diff <symbol> [base]`        |
+| Explicit index refresh         | `cymbal_index`                    | `cymbal index [path]`                |
 | Guided investigation           | `cymbal_investigate`              | `cymbal investigate <symbol>`        |
 | Call trace                     | `cymbal_trace`                    | `cymbal trace <symbol>`              |
 | Context bundle                 | `cymbal_context`                  | `cymbal context <symbol>`            |
 
-Optional tools check command support first. If Cymbal lacks a guide-only command, the tool returns an unsupported-command error.
+Newer Cymbal commands check support first. If the installed Cymbal version lacks a command, the tool returns an unsupported-command error.
 
-## Tool Details
+## Common Usage
 
-### `cymbal_map`
+### Orient first
 
-Use for repo or directory orientation before choosing files.
+Use `cymbal_map` or `cymbal_structure` before editing unfamiliar code.
 
-Common parameters:
+Useful params:
 
-- `path`: directory scope. Defaults to `.`.
-- `depth`: tree depth.
-- `stats`: include repository stats. Defaults to `true`.
-- `repos`: list indexed repositories instead of a tree.
+- `cymbal_map`: `path`, `depth`, `stats`, `repos`
+- `cymbal_structure`: `limit`
 
-### `cymbal_search`
+### Search and read narrowly
 
-Use for symbol or text search.
+Use `cymbal_search`, `cymbal_outline`, and `cymbal_show` instead of broad grep/read loops.
 
-Common parameters:
+Useful params:
 
-- `query`: symbol query, or text query when `text` is true.
-- `queries`: additional symbol queries. In text mode, Cymbal treats them as more words in the same pattern.
-- `text`: use Cymbal full-text search.
-- `exact`, `kind`, `lang`, `limit`: filters.
-- `path`, `exclude`: include or exclude path globs.
+- `cymbal_search`: `query`, `queries`, `text`, `exact`, `ignoreCase`, `kind`, `lang`, `limit`, `path`, `exclude`
+- `cymbal_outline`: `files`, `names`, `signatures`
+- `cymbal_show`: `target`, `targets`, `all`, `context`, `path`, `exclude`
 
-### `cymbal_outline`
+`ignoreCase` implies exact symbol matching and cannot be used with text search.
 
-Use before reading full files. pi-cymbal runs one outline command per file because Cymbal accepts one file per call. Files with no outline symbols produce partial output when other files succeed.
+### Check relationships before refactors
 
-### `cymbal_show`
+Use `cymbal_refs`, `cymbal_impact`, `cymbal_importers`, and `cymbal_impls` before changing exported symbols or imports.
 
-Use for targeted reads. Targets can be symbols, files, or ranges such as `src/index.ts:1-40`. Pass `targets` to read several targets in one call. Missing targets produce partial output when other targets succeed. Split JSON calls when absolute targets point at a different repo than relative or symbol targets, or when absolute targets span repos.
+Useful params:
 
-### Relationship Tools
+- `cymbal_refs`: `symbol`, `symbols`, `context`, `file`, `path`, `exclude`, `importers`, `impact`, `depth`, `limit`
+- `cymbal_impact`: `symbol`, `symbols`, `context`, `depth`, `limit`
+- `cymbal_importers`: `target`, `depth`, `includeUnresolved`, graph options
+- `cymbal_impls`: `symbol`, `symbols`, `of`, `lang`, `path`, `exclude`, `resolved`, `unresolved`, `includeUnresolved`, graph options
 
-Use `cymbal_refs`, `cymbal_impact`, `cymbal_importers`, and `cymbal_impls` before refactors. Use `graph`, `graphFormat`, and `graphLimit` where Cymbal supports graph output.
+### Review diffs by symbol
 
-## Output Format
+Use `cymbal_diff` for a focused diff on one symbol.
 
-Tools default to Cymbal's compact agent-native output.
+Useful params:
 
-Pass `format: "json"` to request machine-readable output:
+- `symbol`: symbol to diff
+- `base`: Git base revision
+- `stat`: show diffstat instead of full diff
+
+### Refresh the index only when needed
+
+Use `cymbal_index` only when the index looks stale or the user asks to refresh it. Cymbal auto-indexes during normal navigation.
+
+Useful params:
+
+- `path`, `force`, `workers`, `exclude`, `includeGenerated`, `includeLargeFiles`
+
+## Hooks
+
+At session start, pi-cymbal runs:
+
+```sh
+cymbal hook remind --format=text --update=if-stale
+```
+
+Before eligible `bash`, `grep`, and `read` calls, it runs:
+
+```sh
+cymbal hook nudge --format=json
+```
+
+Nudges are advisory. The original tool still runs. Identical suggestions are suppressed for 60 seconds per cwd.
+
+## Paths and Repos
+
+pi-cymbal relies on Cymbal's Git repo auto-detection. It does not pass `--db`.
+
+For absolute paths inside a Git repo, pi-cymbal runs Cymbal from that repo root and passes repo-relative paths. This applies to:
+
+- path targets for `cymbal_map`, `cymbal_show`, `cymbal_outline`, `cymbal_importers`, and `cymbal_index`
+- include `path` filters for `cymbal_search`, `cymbal_show`, `cymbal_refs`, and `cymbal_impls`
+
+Absolute `exclude` filters are scoped after a target or include `path` selects a repo.
+
+For non-Git directories, use Pi file tools such as `find`, `grep`, `ls`, and `read`.
+
+## Output
+
+Tools default to Cymbal's agent-native text output.
+
+Pass `format: "json"` for JSON:
 
 ```text
 Use cymbal_search with format json to find registerCymbalHooks.
@@ -157,46 +165,27 @@ Use cymbal_search with format json to find registerCymbalHooks.
 
 Large outputs are truncated. Tool details include a temp-file path with the full output.
 
-Recoverable misses such as "no results found" and "file not found" return normal tool results with `details.status = "not_found"`. Path-like misses include nearby file suggestions when pi-cymbal can find them. Repository-boundary errors remain errors.
-
-## Environment Variables
-
-- `CYMBAL_BIN`: absolute path to the Cymbal binary.
-- `CYMBAL_NO_UPDATE_NOTIFIER`: set by the extension for deterministic tool output.
-- `NO_COLOR`: set by the extension for deterministic tool output.
-- `TERM`: set to `dumb` by the extension for deterministic tool output.
+Recoverable misses such as "no results found" and "file not found" return normal tool results with `details.status = "not_found"`. Repository-boundary errors remain errors.
 
 ## Development
 
 ```sh
 npm install
-npm run typecheck
-npm test
-npm pack --dry-run
-```
-
-Run full validation:
-
-```sh
 npm run validate
 ```
 
-Try it through Pi:
+Local Pi smoke:
 
 ```sh
-pi -e /home/raphael/repos/github.com/raphapr/pi-cymbal \
-  --tools cymbal_map,cymbal_search,cymbal_outline,cymbal_show \
-  -p "Use Cymbal to map this package."
+pi --no-extensions -e . --no-session -p \
+  "Use cymbal_structure to orient in this repo, then use cymbal_diff on registerCymbalHooks."
 ```
 
 ## Publishing
 
-GitHub Actions publishes releases:
-
-1. Configure npm trusted publishing for `pi-cymbal` and allow `.github/workflows/publish.yml` from this repository.
-2. Bump `package.json` version.
-3. Create a GitHub release whose tag matches the version, such as `v0.1.0`.
-4. The publish workflow runs validation and publishes with npm provenance.
+1. Bump `package.json` version.
+2. Create a GitHub release with a matching tag, such as `vX.Y.Z`.
+3. GitHub Actions validates and publishes with npm provenance.
 
 Use the manual `Publish to npm` workflow with `dry_run: true` to test packaging.
 

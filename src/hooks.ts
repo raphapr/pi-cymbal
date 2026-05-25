@@ -14,6 +14,7 @@ export type SendMessage = (message: { customType: string; content: string; displ
 export interface HookDeps {
   run?: HookRunner;
   sendMessage?: SendMessage;
+  now?: () => number;
 }
 
 export interface HookContext {
@@ -27,8 +28,34 @@ export interface ToolCallEventLike {
   input: unknown;
 }
 
-export function buildNudgePayload(command: string): string {
-  return JSON.stringify({ tool_name: "bash", tool_input: { command } });
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export function buildNudgePayload(toolName: string, input: unknown): string | undefined {
+  if (!isRecord(input)) return undefined;
+
+  if (toolName === "bash") {
+    const { command } = input;
+    if (typeof command !== "string" || !command.trim()) return undefined;
+    return JSON.stringify({ tool_name: "bash", tool_input: { command } });
+  }
+
+  if (toolName === "grep") {
+    const { pattern, glob } = input;
+    if (typeof pattern !== "string" || !pattern.trim()) return undefined;
+    const toolInput: { pattern: string; glob?: string } = { pattern };
+    if (typeof glob === "string" && glob.trim()) toolInput.glob = glob;
+    return JSON.stringify({ tool_name: "Grep", tool_input: toolInput });
+  }
+
+  if (toolName === "read") {
+    const { path } = input;
+    if (typeof path !== "string" || !path.trim()) return undefined;
+    return JSON.stringify({ tool_name: "Read", tool_input: { file_path: path } });
+  }
+
+  return undefined;
 }
 
 export function parseNudgeResponse(output: string): NudgeSuggestion | undefined {
@@ -48,15 +75,35 @@ export function parseNudgeResponse(output: string): NudgeSuggestion | undefined 
 }
 
 function buildNudgeMessage(suggestion: NudgeSuggestion): string {
-  const parts = [`Cymbal suggests: ${suggestion.suggest}`];
+  const parts = [
+    `Cymbal suggests: ${suggestion.suggest}`,
+    "Use this if it fits; ignore it if your original tool is intentional.",
+  ];
   if (suggestion.why) parts.push(`Why: ${suggestion.why}`);
   if (suggestion.tool) parts.push(`Tool: ${suggestion.tool}`);
   return parts.join("\n");
 }
 
+const NUDGE_SUPPRESSION_MS = 60_000;
+
 export function createCymbalHooks(deps: HookDeps = {}) {
   const run = deps.run ?? runCymbal;
+  const now = deps.now ?? Date.now;
+  const seenSuggestions = new Map<string, number>();
   let reminderText = "";
+
+  function shouldSuppressSuggestion(cwd: string, suggest: string): boolean {
+    const currentTime = now();
+    for (const [key, expiresAt] of seenSuggestions) {
+      if (expiresAt <= currentTime) seenSuggestions.delete(key);
+    }
+
+    const key = `${cwd}\u0000${suggest}`;
+    const expiresAt = seenSuggestions.get(key);
+    if (expiresAt !== undefined && expiresAt > currentTime) return true;
+    seenSuggestions.set(key, currentTime + NUDGE_SUPPRESSION_MS);
+    return false;
+  }
 
   return {
     async refreshReminder(ctx: HookContext): Promise<boolean> {
@@ -82,19 +129,18 @@ export function createCymbalHooks(deps: HookDeps = {}) {
     },
 
     async handleToolCall(event: ToolCallEventLike, ctx: HookContext): Promise<void> {
-      if (event.toolName !== "bash") return;
-      const input = event.input as { command?: unknown };
-      if (typeof input.command !== "string" || !input.command.trim()) return;
+      const payload = buildNudgePayload(event.toolName, event.input);
+      if (!payload) return;
 
       try {
         const result = await run({
           cwd: ctx.cwd,
           args: ["hook", "nudge", "--format=json"],
-          input: buildNudgePayload(input.command),
+          input: payload,
           timeoutMs: 5_000,
         });
         const suggestion = parseNudgeResponse(result.stdout);
-        if (!suggestion) return;
+        if (!suggestion || shouldSuppressSuggestion(ctx.cwd, suggestion.suggest)) return;
 
         const content = buildNudgeMessage(suggestion);
         await deps.sendMessage?.({ customType: "pi-cymbal-nudge", content, display: true });

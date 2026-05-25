@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { registerOutlineTool } from "../src/tools/outline.ts";
 
-test("cymbal_outline runs one Cymbal command per file and combines output", async () => {
+test("cymbal_outline runs one Cymbal command per file and combines output with names", async () => {
   const calls = [];
   const pi = {
     registerTool(tool) {
@@ -17,7 +17,7 @@ test("cymbal_outline runs one Cymbal command per file and combines output", asyn
 
   const result = await pi.tool.execute(
     "call-1",
-    { files: ["@src/cymbal.ts", "src/tools/common.ts"], signatures: true, format: "agent" },
+    { files: ["@src/cymbal.ts", "src/tools/common.ts"], names: true, signatures: true, format: "agent" },
     undefined,
     undefined,
     {
@@ -37,8 +37,8 @@ test("cymbal_outline runs one Cymbal command per file and combines output", asyn
   );
 
   assert.deepEqual(calls, [
-    ["outline", "src/cymbal.ts", "--signatures"],
-    ["outline", "src/tools/common.ts", "--signatures"],
+    ["outline", "src/cymbal.ts", "--names", "--signatures"],
+    ["outline", "src/tools/common.ts", "--names", "--signatures"],
   ]);
   assert.match(result.content[0].text, /outline for src\/cymbal\.ts/);
   assert.match(result.content[0].text, /outline for src\/tools\/common\.ts/);
@@ -92,7 +92,7 @@ test("cymbal_outline keeps successful files when another file is not found", asy
 
     const result = await pi.tool.execute(
       "call-1",
-      { files: ["src/index.ts", "src/queries/access_policy.sql"], format: "agent" },
+      { files: ["src/index.ts", "src/queries/access_policy.sql"], names: true, format: "agent" },
       undefined,
       undefined,
       {

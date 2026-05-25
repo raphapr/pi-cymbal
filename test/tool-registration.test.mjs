@@ -16,15 +16,18 @@ test("extension registers expected tools and command", () => {
 
   assert.deepEqual(tools.sort(), [
     "cymbal_context",
+    "cymbal_diff",
     "cymbal_impact",
     "cymbal_impls",
     "cymbal_importers",
+    "cymbal_index",
     "cymbal_investigate",
     "cymbal_map",
     "cymbal_outline",
     "cymbal_refs",
     "cymbal_search",
     "cymbal_show",
+    "cymbal_structure",
     "cymbal_trace",
   ]);
   assert.deepEqual(commands, ["cymbal:remind"]);

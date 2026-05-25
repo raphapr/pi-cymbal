@@ -70,11 +70,78 @@ function scopedValue(value: string, repoRoot: string, omitRepoRoot: boolean): st
   return `${nextPath}${parts.suffix}`;
 }
 
-function sameRepoRoot(values: string[], fs: PathFs): string | undefined {
+function sameRepoRoot(values: string[], fs: RepoRootFs): string | undefined {
   const roots = values.map((value) => findRepoRoot(value, fs));
   const root = roots[0];
   if (!root) return undefined;
   return roots.every((candidate) => candidate === root) ? root : undefined;
+}
+
+function asPathArray(value?: string | string[]): string[] {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function pathFilterValue(paths: string[]): string | string[] | undefined {
+  if (!paths.length) return undefined;
+  return paths.length === 1 ? paths[0] : paths;
+}
+
+function absoluteFilterValues(value?: string | string[]): string[] {
+  return asPathArray(value)
+    .map((path) => absolutePathPart(path))
+    .filter((path): path is string => Boolean(path));
+}
+
+function scopedFilterValue(value: string | string[] | undefined, repoRoot: string, omitRepoRoot: boolean): string | string[] | undefined {
+  const scoped = asPathArray(value)
+    .map((path) => {
+      const normalized = normalizePathArg(path);
+      const absolute = absolutePathPart(normalized);
+      if (!absolute) return normalized;
+      const scopedPath = relative(repoRoot, absolute) || ".";
+      if (scopedPath.startsWith("..") || isAbsolute(scopedPath)) return normalized;
+      return omitRepoRoot && scopedPath === "." ? undefined : scopedPath;
+    })
+    .filter((path): path is string => Boolean(path));
+
+  return pathFilterValue(scoped);
+}
+
+export function resolvePathFilterRun<Params>(
+  params: Params,
+  cwd: string,
+  options: {
+    path?: string | string[];
+    exclude?: string | string[];
+    applyPath: (params: Params, value: string | string[] | undefined) => Params;
+    applyExclude: (params: Params, value: string | string[] | undefined) => Params;
+    targetRepoRoot?: string;
+    fs?: RepoRootFs;
+    errorPrefix?: string;
+  },
+): ResolvedRun<Params> {
+  const fs = options.fs ?? defaultFs;
+  const includeAbsolutes = absoluteFilterValues(options.path);
+  const excludeAbsolutes = absoluteFilterValues(options.exclude);
+  const filterAbsolutes = [...includeAbsolutes, ...excludeAbsolutes];
+
+  if (options.targetRepoRoot) {
+    for (const value of filterAbsolutes) {
+      const filterRoot = findRepoRoot(value, fs);
+      if (filterRoot && filterRoot !== options.targetRepoRoot) {
+        throw new Error(`${options.errorPrefix ?? "Cymbal tool"} path filters resolve to a different repository than the target; split them into separate calls.`);
+      }
+    }
+  }
+
+  const includeRepoRoot = includeAbsolutes.length ? sameRepoRoot(includeAbsolutes, fs) : undefined;
+  const repoRoot = options.targetRepoRoot ?? includeRepoRoot;
+  if (!repoRoot) return { cwd, params };
+
+  const withPath = options.applyPath(params, scopedFilterValue(options.path, repoRoot, true));
+  const withExclude = options.applyExclude(withPath, scopedFilterValue(options.exclude, repoRoot, false));
+  return { cwd: options.targetRepoRoot ? cwd : repoRoot, params: withExclude };
 }
 
 export function resolveSinglePathRun<Params>(
@@ -82,7 +149,7 @@ export function resolveSinglePathRun<Params>(
   cwd: string,
   value: string | undefined,
   apply: (params: Params, value: string | undefined) => Params,
-  options: { omitRepoRoot?: boolean; fs?: PathFs } = {},
+  options: { omitRepoRoot?: boolean; fs?: RepoRootFs } = {},
 ): ResolvedRun<Params> {
   if (!value) return { cwd, params };
 
@@ -106,7 +173,7 @@ export function resolveMultiPathRun<Params>(
   cwd: string,
   values: string[],
   apply: (params: Params, values: string[]) => Params,
-  options: { omitRepoRoot?: boolean; fs?: PathFs } = {},
+  options: { omitRepoRoot?: boolean; fs?: RepoRootFs } = {},
 ): ResolvedRun<Params> {
   const absolutes = values.map(absolutePathPart).filter((value): value is string => Boolean(value));
   if (!absolutes.length) return { cwd, params };

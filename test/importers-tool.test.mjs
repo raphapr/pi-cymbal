@@ -28,7 +28,7 @@ test("cymbal_importers scopes absolute file targets to their repo root", async (
 
     const result = await pi.tool.execute(
       "call-1",
-      { target: file, depth: 2, format: "agent" },
+      { target: file, depth: 2, includeUnresolved: true, format: "agent" },
       undefined,
       undefined,
       {
@@ -48,7 +48,7 @@ test("cymbal_importers scopes absolute file targets to their repo root", async (
     );
 
     assert.equal(calls[0].cwd, repo);
-    assert.deepEqual(calls[0].args, ["importers", "src/index.ts", "--depth", "2"]);
+    assert.deepEqual(calls[0].args, ["importers", "src/index.ts", "--depth", "2", "--include-unresolved"]);
     assert.equal(result.content[0].text, "importers output");
   } finally {
     await rm(repo, { recursive: true, force: true });

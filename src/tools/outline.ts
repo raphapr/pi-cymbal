@@ -71,7 +71,7 @@ export function registerOutlineTool(pi: ExtensionAPI): void {
         for (const file of params.files) {
           const run = resolveOutlineRun({ ...params, files: [file] }, ctx.cwd);
           const scopedFile = run.params.files[0];
-          const args = buildOutlineArgs({ files: [scopedFile], signatures: params.signatures, format: params.format });
+          const args = buildOutlineArgs({ files: [scopedFile], names: params.names, signatures: params.signatures, format: params.format });
           try {
             const result = normalizeOutlineResult(await runner({ cwd: run.cwd, args, signal }), scopedFile, params.format);
             commands.push({ command: result.command, args: result.args, exitCode: result.code });

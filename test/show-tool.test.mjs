@@ -440,6 +440,87 @@ test("cymbal_show preserves no-repo errors", async () => {
   );
 });
 
+test("cymbal_show scopes absolute include and exclude filters", async () => {
+  const repo = await makeRepo("pi-cymbal-show-");
+  await mkdir(join(repo, "src"), { recursive: true });
+  await mkdir(join(repo, "test"), { recursive: true });
+  await writeFile(join(repo, "src", "index.ts"), "export {};\n", "utf8");
+  const calls = [];
+  const pi = {
+    registerTool(tool) {
+      this.tool = tool;
+    },
+  };
+
+  try {
+    registerShowTool(pi);
+
+    await pi.tool.execute(
+      "call-1",
+      { target: "registerShowTool", path: join(repo, "src"), exclude: join(repo, "test"), all: true, format: "agent" },
+      undefined,
+      undefined,
+      {
+        cwd: process.cwd(),
+        runCymbal: async (options) => {
+          calls.push(options);
+          return {
+            command: `cymbal ${options.args.join(" ")}`,
+            args: options.args,
+            cwd: options.cwd,
+            stdout: "filtered symbol source",
+            stderr: "",
+            code: 0,
+          };
+        },
+      },
+    );
+
+    assert.equal(calls[0].cwd, repo);
+    assert.deepEqual(calls[0].args, ["show", "registerShowTool", "--all", "--path", "src", "--exclude", "test"]);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test("cymbal_show rejects include filters that conflict with an absolute target repo", async () => {
+  const targetRepo = await makeRepo("pi-cymbal-show-target-");
+  const filterRepo = await makeRepo("pi-cymbal-show-filter-");
+  await mkdir(join(targetRepo, "src"), { recursive: true });
+  await mkdir(join(filterRepo, "src"), { recursive: true });
+  const file = join(targetRepo, "src", "index.ts");
+  await writeFile(file, "export {};\n", "utf8");
+  const pi = {
+    registerTool(tool) {
+      this.tool = tool;
+    },
+  };
+
+  try {
+    registerShowTool(pi);
+
+    await assert.rejects(
+      () =>
+        pi.tool.execute(
+          "call-1",
+          { target: `${file}:1-1`, path: join(filterRepo, "src"), format: "agent" },
+          undefined,
+          undefined,
+          {
+            cwd: process.cwd(),
+            runCymbal: async () => {
+              throw new Error("runCymbal should not be called for conflicting filter scope");
+            },
+          },
+        ),
+      /different repository than the target/,
+    );
+  } finally {
+    await rm(targetRepo, { recursive: true, force: true });
+    await rm(filterRepo, { recursive: true, force: true });
+  }
+});
+
 test("cymbal_show scopes an absolute file target to its repository", async () => {
   const repo = await makeRepo("pi-cymbal-show-");
   await mkdir(join(repo, "src"), { recursive: true });

@@ -4,7 +4,7 @@ import { normalizePathArg, runCymbal, type RunCymbalResult } from "../cymbal.js"
 import { formatCymbalOutput, type CymbalToolResult } from "../output.js";
 import { buildShowArgs, ShowParams, type ShowArgs } from "../params.js";
 import type { ToolContext } from "./common.js";
-import { findRepoRoot, resolveMultiPathRun, resolveSinglePathRun, splitPathRangeSuffix } from "./path.js";
+import { findRepoRoot, resolveMultiPathRun, resolvePathFilterRun, resolveSinglePathRun, splitPathRangeSuffix, type RepoRootFs } from "./path.js";
 import { recoverCymbalNotFound } from "./recovery.js";
 
 function showTargets(params: ShowArgs): string[] {
@@ -15,11 +15,37 @@ function showTargets(params: ShowArgs): string[] {
   throw new Error("target or targets is required");
 }
 
-export function resolveShowRun(params: ShowArgs, cwd: string) {
-  if (params.targets?.length) {
-    return resolveMultiPathRun(params, cwd, params.targets, (next, targets) => ({ ...next, targets }));
-  }
-  return resolveSinglePathRun(params, cwd, params.target, (next, target) => ({ ...next, target }));
+function withScopedFilter(params: ShowArgs, key: "path" | "exclude", value: string | string[] | undefined): ShowArgs {
+  const next = { ...params };
+  if (value === undefined) delete next[key];
+  else next[key] = value;
+  return next;
+}
+
+function targetRepoRoot(targets: string[], fs?: RepoRootFs): string | undefined {
+  const absolutePaths = targets.map(absolutePathTarget).filter((target): target is string => Boolean(target));
+  if (!absolutePaths.length) return undefined;
+  const roots = absolutePaths.map((target) => findRepoRoot(target, fs));
+  const root = roots[0];
+  return root && roots.every((candidate) => candidate === root) ? root : undefined;
+}
+
+export function resolveShowRun(params: ShowArgs, cwd: string, fs?: RepoRootFs) {
+  const targets = showTargets(params);
+  const targetRoot = targetRepoRoot(targets, fs);
+  const targetRun = params.targets?.length
+    ? resolveMultiPathRun(params, cwd, params.targets, (next, values) => ({ ...next, targets: values }), { fs })
+    : resolveSinglePathRun(params, cwd, params.target, (next, target) => ({ ...next, target }), { fs });
+
+  return resolvePathFilterRun(targetRun.params, targetRun.cwd, {
+    path: targetRun.params.path,
+    exclude: targetRun.params.exclude,
+    applyPath: (next, value) => withScopedFilter(next, "path", value),
+    applyExclude: (next, value) => withScopedFilter(next, "exclude", value),
+    targetRepoRoot: targetRoot,
+    fs,
+    errorPrefix: "cymbal_show",
+  });
 }
 
 function absolutePathTarget(target: string): string | undefined {

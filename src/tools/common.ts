@@ -2,6 +2,7 @@ import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { OutputFormat } from "../cymbal.js";
 import { runCymbal } from "../cymbal.js";
 import { formatCymbalOutput } from "../output.js";
+import { ensureCommandAvailable } from "./optional.js";
 import { normalizeEmptyCymbalNotFound, recoverCymbalNotFound } from "./recovery.js";
 
 export interface ToolContext {
@@ -22,6 +23,7 @@ export interface CymbalToolSpec<Params extends { format?: OutputFormat }> {
   buildArgs: (params: Params) => string[];
   resolveRun?: (params: Params, cwd: string) => ResolvedToolRun<Params>;
   recoverTarget?: (params: Params, args: string[]) => string | undefined;
+  availabilityCommand?: string;
   promptSnippet: string;
   promptGuidelines: string[];
 }
@@ -39,6 +41,7 @@ export function registerCymbalTool<Params extends { format?: OutputFormat }>(pi:
         const run = spec.resolveRun?.(params, ctx.cwd) ?? { cwd: ctx.cwd, params };
         const args = spec.buildArgs(run.params);
         const runner = ctx.runCymbal ?? runCymbal;
+        if (spec.availabilityCommand) await ensureCommandAvailable(spec.availabilityCommand, runner, run.cwd, signal);
         try {
           const result = normalizeEmptyCymbalNotFound(await runner({ cwd: run.cwd, args, signal }), params.format);
           return await formatCymbalOutput({ result, format: params.format ?? "agent" });
