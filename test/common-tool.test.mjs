@@ -4,6 +4,15 @@ import { Type } from "typebox";
 import { ProcessError } from "../src/cymbal.ts";
 import { registerCymbalTool } from "../src/tools/common.ts";
 
+const theme = {
+  fg: (_slot, text) => text,
+  bold: (text) => text,
+};
+
+function render(component) {
+  return component.render(200).map((line) => line.trimEnd()).join("\n");
+}
+
 function registerFakeTool(runCymbal, options = {}) {
   const pi = {
     registerTool(tool) {
@@ -27,6 +36,65 @@ function registerFakeTool(runCymbal, options = {}) {
 
   return { pi, ctx: { cwd: process.cwd(), runCymbal } };
 }
+
+test("registerCymbalTool renders collapsed calls without raw JSON", () => {
+  const { pi } = registerFakeTool(async () => {
+    throw new Error("not executed");
+  });
+
+  const collapsed = render(
+    pi.tool.renderCall(
+      { target: "SomeSymbol", format: "json" },
+      theme,
+      { expanded: false },
+    ),
+  );
+  const expanded = render(
+    pi.tool.renderCall(
+      { target: "SomeSymbol", format: "json" },
+      theme,
+      { expanded: true },
+    ),
+  );
+
+  assert.equal(collapsed, 'cymbal_fake target="SomeSymbol" format="json"');
+  assert.match(expanded, /"target": "SomeSymbol"/);
+});
+
+test("registerCymbalTool renders collapsed results as summaries", async () => {
+  const { pi, ctx } = registerFakeTool(async (options) => ({
+    command: `cymbal ${options.args.join(" ")}`,
+    args: options.args,
+    cwd: options.cwd,
+    stdout: "first line\nsecond line\n",
+    stderr: "",
+    code: 0,
+  }));
+  const result = await pi.tool.execute("call-1", { target: "SomeSymbol" }, undefined, undefined, ctx);
+
+  const collapsed = render(
+    pi.tool.renderResult(
+      result,
+      { expanded: false, isPartial: false },
+      theme,
+      { expanded: false, isError: false },
+    ),
+  );
+  const expanded = render(
+    pi.tool.renderResult(
+      result,
+      { expanded: true, isPartial: false },
+      theme,
+      { expanded: true, isError: false },
+    ),
+  );
+
+  assert.match(collapsed, /ok/);
+  assert.match(collapsed, /2 lines/);
+  assert.match(collapsed, /expand/);
+  assert.doesNotMatch(collapsed, /first line/);
+  assert.match(expanded, /first line\nsecond line/);
+});
 
 test("registerCymbalTool returns JSON for empty no-result output", async () => {
   const { pi, ctx } = registerFakeTool(async (options) => ({
