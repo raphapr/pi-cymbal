@@ -1,6 +1,7 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { CymbalError, ProcessError, runCymbal, type OutputFormat, type RunCymbalResult } from "../cymbal.js";
 import { formatCymbalOutput } from "../output.js";
+import { cymbalToolRenderers } from "../render.js";
 import type { ToolContext } from "./common.js";
 import { normalizeEmptyCymbalNotFound, recoverCymbalNotFound } from "./recovery.js";
 import {
@@ -58,6 +59,7 @@ function registerOptionalTool<Params extends { format?: OutputFormat }>(pi: Exte
       parameters: spec.parameters as never,
       promptSnippet: `${spec.name}: Optional Cymbal ${spec.command} helper. It checks command availability first.`,
       promptGuidelines: [`Use ${spec.name} only when Cymbal supports the ${spec.command} command.`],
+      ...cymbalToolRenderers(spec.name),
       async execute(_toolCallId, params: Params, signal, _onUpdate, ctx: ToolContext) {
         const runner = ctx.runCymbal ?? runCymbal;
         await ensureCommandAvailable(spec.command, runner, ctx.cwd, signal);

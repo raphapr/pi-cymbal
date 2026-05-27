@@ -1,8 +1,8 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { OutputFormat } from "../cymbal.js";
 import { runCymbal } from "../cymbal.js";
-import { formatCymbalOutput, type CymbalToolResult } from "../output.js";
-import { renderCymbalCall, renderCymbalResult } from "../render.js";
+import { formatCymbalOutput } from "../output.js";
+import { cymbalToolRenderers } from "../render.js";
 import { ensureCommandAvailable } from "./optional.js";
 import { normalizeEmptyCymbalNotFound, recoverCymbalNotFound } from "./recovery.js";
 
@@ -38,12 +38,7 @@ export function registerCymbalTool<Params extends { format?: OutputFormat }>(pi:
       parameters: spec.parameters as never,
       promptSnippet: spec.promptSnippet,
       promptGuidelines: spec.promptGuidelines,
-      renderCall(args, theme, context) {
-        return renderCymbalCall(spec.name, args, theme, context);
-      },
-      renderResult(result, options, theme, context) {
-        return renderCymbalResult(result as CymbalToolResult, options, theme, context);
-      },
+      ...cymbalToolRenderers(spec.name),
       async execute(_toolCallId, params: Params, signal, _onUpdate, ctx: ToolContext) {
         const run = spec.resolveRun?.(params, ctx.cwd) ?? { cwd: ctx.cwd, params };
         const args = spec.buildArgs(run.params);

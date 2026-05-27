@@ -149,3 +149,14 @@ export function renderCymbalResult(
   text.setText(`${theme.fg(resultColor(status, context.isError), summary)} · ${expandHint()}`);
   return text;
 }
+
+export function cymbalToolRenderers(toolName: string) {
+  return {
+    renderCall(args: unknown, theme: RenderTheme, context: RenderContext): Text {
+      return renderCymbalCall(toolName, args, theme, context);
+    },
+    renderResult(result: unknown, options: RenderResultOptions, theme: RenderTheme, context: RenderContext): Text {
+      return renderCymbalResult(result as CymbalToolResult, options, theme, context);
+    },
+  };
+}

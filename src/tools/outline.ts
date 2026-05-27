@@ -2,6 +2,7 @@ import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { runCymbal, type OutputFormat, type RunCymbalResult } from "../cymbal.js";
 import { formatCymbalOutput, type CymbalToolResult } from "../output.js";
 import { buildOutlineArgs, OutlineParams, type OutlineArgs } from "../params.js";
+import { cymbalToolRenderers } from "../render.js";
 import type { ToolContext } from "./common.js";
 import { resolveMultiPathRun } from "./path.js";
 import { normalizeEmptyCymbalNotFound, recoverCymbalNotFound } from "./recovery.js";
@@ -63,6 +64,7 @@ export function registerOutlineTool(pi: ExtensionAPI): void {
       parameters: OutlineParams,
       promptSnippet: "cymbal_outline: Inspect file structure with Cymbal before reading full files.",
       promptGuidelines: ["Use cymbal_outline before reading a whole local code file when file structure is enough."],
+      ...cymbalToolRenderers("cymbal_outline"),
       async execute(_toolCallId, params: OutlineArgs, signal, _onUpdate, ctx: ToolContext) {
         const runner = ctx.runCymbal ?? runCymbal;
         const formatted = [];

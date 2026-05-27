@@ -20,7 +20,14 @@ export interface HookDeps {
 export interface HookContext {
   cwd: string;
   hasUI?: boolean;
-  ui?: { notify?: (message: string, type?: "info" | "warning" | "error") => void };
+  ui?: {
+    notify?: (message: string, type?: "info" | "warning" | "error") => void;
+    setToolsExpanded?: (expanded: boolean) => void;
+  };
+}
+
+export interface ToolExecutionStartEventLike {
+  toolName: string;
 }
 
 export interface ToolCallEventLike {
@@ -79,6 +86,11 @@ function buildNudgeMessage(suggestion: NudgeSuggestion): string {
 }
 
 const NUDGE_SUPPRESSION_MS = 60_000;
+const CYMBAL_TOOL_PREFIX = "cymbal_";
+
+export function isCymbalToolName(toolName: string): boolean {
+  return toolName.startsWith(CYMBAL_TOOL_PREFIX);
+}
 
 export function createCymbalHooks(deps: HookDeps = {}) {
   const run = deps.run ?? runCymbal;
@@ -122,6 +134,11 @@ export function createCymbalHooks(deps: HookDeps = {}) {
       };
     },
 
+    collapseCymbalTool(event: ToolExecutionStartEventLike, ctx: HookContext): void {
+      if (!isCymbalToolName(event.toolName)) return;
+      ctx.ui?.setToolsExpanded?.(false);
+    },
+
     async handleToolCall(event: ToolCallEventLike, ctx: HookContext): Promise<void> {
       const payload = buildNudgePayload(event.toolName, event.input);
       if (!payload) return;
@@ -161,6 +178,10 @@ export function registerCymbalHooks(pi: ExtensionAPI): void {
 
   pi.on("tool_call", (event: ToolCallEventLike, ctx: HookContext) => {
     void hooks.handleToolCall(event, ctx);
+  });
+
+  pi.on("tool_execution_start", (event: ToolExecutionStartEventLike, ctx: HookContext) => {
+    hooks.collapseCymbalTool(event, ctx);
   });
 
   pi.registerCommand("cymbal:remind", {

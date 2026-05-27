@@ -2,6 +2,7 @@ import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isNoRepoDetected, ProcessError, runCymbal, type RunCymbalResult } from "../cymbal.js";
 import { formatCymbalOutput } from "../output.js";
 import { buildSearchArgs, SearchParams, type SearchArgs } from "../params.js";
+import { cymbalToolRenderers } from "../render.js";
 import { resolvePathFilterRun, type RepoRootFs } from "./path.js";
 
 interface SearchRun {
@@ -56,6 +57,7 @@ export function registerSearchTool(pi: ExtensionAPI): void {
       parameters: SearchParams,
       promptSnippet: "cymbal_search: Search symbols or text with Cymbal. Prefer before broad grep for local code.",
       promptGuidelines: ["Use cymbal_search before broad local grep when looking for symbols or text in a repository."],
+      ...cymbalToolRenderers("cymbal_search"),
       async execute(_toolCallId, params: SearchArgs, signal, _onUpdate, ctx) {
         const run = resolveSearchRun(params, ctx.cwd);
         const args = buildSearchArgs(run.params);
