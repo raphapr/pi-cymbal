@@ -49,11 +49,24 @@ export function buildNudgePayload(toolName: string, input: unknown): string | un
   }
 
   if (toolName === "grep") {
-    const { pattern, glob } = input;
+    const { pattern, glob, literal } = input;
+    if (literal === true) return undefined;
     if (typeof pattern !== "string" || !pattern.trim()) return undefined;
     const toolInput: { pattern: string; glob?: string } = { pattern };
     if (typeof glob === "string" && glob.trim()) toolInput.glob = glob;
     return JSON.stringify({ tool_name: "Grep", tool_input: toolInput });
+  }
+
+  if (toolName === "find") {
+    const { pattern } = input;
+    if (typeof pattern !== "string" || !pattern.trim()) return undefined;
+    return JSON.stringify({ tool_name: "Glob", tool_input: { pattern } });
+  }
+
+  if (toolName === "read") {
+    const { path } = input;
+    if (typeof path !== "string" || !path.trim()) return undefined;
+    return JSON.stringify({ tool_name: "Read", tool_input: { file_path: path } });
   }
 
   return undefined;
@@ -98,13 +111,14 @@ export function createCymbalHooks(deps: HookDeps = {}) {
   const seenSuggestions = new Map<string, number>();
   let reminderText = "";
 
-  function shouldSuppressSuggestion(cwd: string, suggest: string): boolean {
+  function shouldSuppressSuggestion(cwd: string, suggest: string, toolName: string): boolean {
     const currentTime = now();
     for (const [key, expiresAt] of seenSuggestions) {
       if (expiresAt <= currentTime) seenSuggestions.delete(key);
     }
 
-    const key = `${cwd}\u0000${suggest}`;
+    const suppressionKey = toolName === "read" ? "tool:Read" : toolName === "find" ? "tool:Glob" : `suggest:${suggest}`;
+    const key = `${cwd}\u0000${suppressionKey}`;
     const expiresAt = seenSuggestions.get(key);
     if (expiresAt !== undefined && expiresAt > currentTime) return true;
     seenSuggestions.set(key, currentTime + NUDGE_SUPPRESSION_MS);
@@ -151,7 +165,7 @@ export function createCymbalHooks(deps: HookDeps = {}) {
           timeoutMs: 5_000,
         });
         const suggestion = parseNudgeResponse(result.stdout);
-        if (!suggestion || shouldSuppressSuggestion(ctx.cwd, suggestion.suggest)) return;
+        if (!suggestion || shouldSuppressSuggestion(ctx.cwd, suggestion.suggest, event.toolName)) return;
 
         const content = buildNudgeMessage(suggestion);
         await deps.sendMessage?.({ customType: "pi-cymbal-nudge", content, display: false });

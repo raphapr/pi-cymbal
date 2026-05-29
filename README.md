@@ -1,20 +1,31 @@
 # pi-cymbal
 
-Pi extension for Cymbal code navigation.
+Pi extension for Cymbal.
 
-It adds `cymbal_*` tools to Pi so agents can search symbols, read focused code, inspect references, and review symbol-scoped diffs without falling back to broad shell commands.
+Cymbal is agent-native code navigation. It indexes code with tree-sitter and returns symbol, reference, import, and diff context for agents.
+
+## Why this package?
+
+Pi has file and shell tools. `pi-cymbal` adds Cymbal tools so agents can inspect indexed code before using broad grep, find, or read loops.
+
+## Features
+
+- Adds `cymbal_*` tools to Pi.
+- Searches symbols and text through Cymbal's index.
+- Reads symbols, files, and line ranges with `cymbal_show`.
+- Inspects references, impacts, imports, implementations, and symbol diffs.
+- Runs Cymbal nudges before eligible `bash`, `grep`, `find`, and `read` calls.
+- Leaves original tool calls unchanged.
 
 ## Requirements
 
 - Pi
-- `cymbal` on `PATH`, or `CYMBAL_BIN` set
 - Cymbal `v0.13.5+` for the full tool set
+- Cymbal binary on `PATH`, or `CYMBAL_BIN` set
 
 ```sh
 export CYMBAL_BIN=/absolute/path/to/cymbal
 ```
-
-Older Cymbal versions may still support the original navigation tools. `structure`, `diff`, `index`, and newer flags need `v0.13.5+`.
 
 ## Install
 
@@ -36,7 +47,7 @@ pi --no-extensions -e /home/raphael/repos/github.com/raphapr/pi-cymbal
 
 `--no-extensions` avoids conflicts with an already installed `pi-cymbal`.
 
-## Quick Start
+## Quick start
 
 ```text
 Use Cymbal to map this repo before editing.
@@ -46,33 +57,27 @@ Use Cymbal to map this repo before editing.
 Find references to registerCymbalHooks with Cymbal.
 ```
 
-```text
-Show the implementation of cymbalExtension.
-```
+## Available tools
 
-## Tools
+| Need                           | Pi tool                           | Cymbal command                       |
+| ------------------------------ | --------------------------------- | ------------------------------------ |
+| Repo overview                  | `cymbal_map`                      | `cymbal ls [path] --stats`           |
+| Structural summary             | `cymbal_structure`                | `cymbal structure`                   |
+| Symbol search                  | `cymbal_search`                   | `cymbal search <query>`              |
+| Text search                    | `cymbal_search` with `text: true` | `cymbal search --text <query>`       |
+| File outline                   | `cymbal_outline`                  | `cymbal outline <file>`              |
+| Symbol, file, or range content | `cymbal_show`                     | `cymbal show <target>`               |
+| References                     | `cymbal_refs`                     | `cymbal refs <symbol>`               |
+| Upstream impact                | `cymbal_impact`                   | `cymbal impact <symbol>`             |
+| Import relationships           | `cymbal_importers`                | `cymbal importers <file-or-package>` |
+| Implementation relationships   | `cymbal_impls`                    | `cymbal impls <symbol>`              |
+| Symbol diff                    | `cymbal_diff`                     | `cymbal diff <symbol> [base]`        |
+| Explicit index refresh         | `cymbal_index`                    | `cymbal index [path]`                |
+| Guided investigation           | `cymbal_investigate`              | `cymbal investigate <symbol>`        |
+| Call trace                     | `cymbal_trace`                    | `cymbal trace <symbol>`              |
+| Context bundle                 | `cymbal_context`                  | `cymbal context <symbol>`            |
 
-| Need | Pi tool | Cymbal command |
-| --- | --- | --- |
-| Repo overview | `cymbal_map` | `cymbal ls [path] --stats` |
-| Structural summary | `cymbal_structure` | `cymbal structure` |
-| Symbol search | `cymbal_search` | `cymbal search <query>` |
-| Text search | `cymbal_search` with `text: true` | `cymbal search --text <query>` |
-| File outline | `cymbal_outline` | `cymbal outline <file>` |
-| Symbol, file, or range content | `cymbal_show` | `cymbal show <target>` |
-| References | `cymbal_refs` | `cymbal refs <symbol>` |
-| Upstream impact | `cymbal_impact` | `cymbal impact <symbol>` |
-| Import relationships | `cymbal_importers` | `cymbal importers <file-or-package>` |
-| Implementation relationships | `cymbal_impls` | `cymbal impls <symbol>` |
-| Symbol diff | `cymbal_diff` | `cymbal diff <symbol> [base]` |
-| Explicit index refresh | `cymbal_index` | `cymbal index [path]` |
-| Guided investigation | `cymbal_investigate` | `cymbal investigate <symbol>` |
-| Call trace | `cymbal_trace` | `cymbal trace <symbol>` |
-| Context bundle | `cymbal_context` | `cymbal context <symbol>` |
-
-Newer Cymbal commands check support first. If the installed Cymbal version lacks a command, the tool returns an unsupported-command error.
-
-## Common Usage
+## Common workflows
 
 ### Orient first
 
@@ -87,44 +92,19 @@ Useful params:
 
 Use `cymbal_search`, `cymbal_outline`, and `cymbal_show` instead of broad grep/read loops.
 
-Useful params:
-
-- `cymbal_search`: `query`, `queries`, `text`, `exact`, `ignoreCase`, `kind`, `lang`, `limit`, `path`, `exclude`
-- `cymbal_outline`: `files`, `names`, `signatures`
-- `cymbal_show`: `target`, `targets`, `all`, `context`, `path`, `exclude`
-
-`ignoreCase` implies exact symbol matching and cannot be used with text search.
-
 ### Check relationships before refactors
 
 Use `cymbal_refs`, `cymbal_impact`, `cymbal_importers`, and `cymbal_impls` before changing exported symbols or imports.
-
-Useful params:
-
-- `cymbal_refs`: `symbol`, `symbols`, `context`, `file`, `path`, `exclude`, `importers`, `impact`, `depth`, `limit`
-- `cymbal_impact`: `symbol`, `symbols`, `context`, `depth`, `limit`
-- `cymbal_importers`: `target`, `depth`, `includeUnresolved`, graph options
-- `cymbal_impls`: `symbol`, `symbols`, `of`, `lang`, `path`, `exclude`, `resolved`, `unresolved`, `includeUnresolved`, graph options
 
 ### Review diffs by symbol
 
 Use `cymbal_diff` for a focused diff on one symbol.
 
-Useful params:
-
-- `symbol`: symbol to diff
-- `base`: Git base revision
-- `stat`: show diffstat instead of full diff
-
 ### Refresh the index only when needed
 
 Use `cymbal_index` only when the index looks stale or the user asks to refresh it. Cymbal auto-indexes during normal navigation.
 
-Useful params:
-
-- `path`, `force`, `workers`, `exclude`, `includeGenerated`, `includeLargeFiles`
-
-## Hooks
+## Agent nudges
 
 At session start, pi-cymbal runs:
 
@@ -132,24 +112,17 @@ At session start, pi-cymbal runs:
 cymbal hook remind --format=text --update=if-stale
 ```
 
-Before eligible `bash` and `grep` calls, it runs:
+Before eligible `bash`, `grep`, `find`, and `read` calls, it runs:
 
 ```sh
 cymbal hook nudge --format=json
 ```
 
-Nudges are advisory. The original tool still runs. They are not rendered in the TUI and appear as UI notifications when available. Identical suggestions are suppressed for 60 seconds per cwd.
+Nudges do not block. They are hidden from TUI output. Pi may show them as notifications. Duplicate nudges are suppressed per cwd for 60s. `Read` and `Glob` suppress per tool.
 
 ## Paths and Repos
 
-pi-cymbal relies on Cymbal's Git repo auto-detection. It does not pass `--db`.
-
-For absolute paths inside a Git repo, pi-cymbal runs Cymbal from that repo root and passes repo-relative paths. This applies to:
-
-- path targets for `cymbal_map`, `cymbal_show`, `cymbal_outline`, `cymbal_importers`, and `cymbal_index`
-- include `path` filters for `cymbal_search`, `cymbal_show`, `cymbal_refs`, and `cymbal_impls`
-
-Absolute `exclude` filters are scoped after a target or include `path` selects a repo.
+pi-cymbal relies on Cymbal's Git repo auto-detection.
 
 For non-Git directories, use Pi file tools such as `find`, `grep`, `ls`, and `read`.
 
@@ -164,8 +137,6 @@ Use cymbal_search with format json to find registerCymbalHooks.
 ```
 
 Large outputs are truncated. Tool details include a temp-file path with the full output.
-
-Recoverable misses such as "no results found" and "file not found" return normal tool results with `details.status = "not_found"`. Repository-boundary errors remain errors.
 
 ## Development
 
