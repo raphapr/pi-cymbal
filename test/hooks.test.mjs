@@ -74,6 +74,11 @@ test("parseNudgeResponse extracts suggestion", () => {
   assert.deepEqual(result, { suggest: "Use cymbal search auth", why: "symbol search", tool: "cymbal" });
 });
 
+test("parseNudgeResponse rewrites stale ls names suggestion", () => {
+  const result = parseNudgeResponse('{"suggest":"cymbal ls --names","why":"indexed paths","tool":"Glob"}');
+  assert.deepEqual(result, { suggest: "cymbal ls", why: "indexed paths", tool: "Glob" });
+});
+
 test("parseNudgeResponse ignores empty output", () => {
   assert.equal(parseNudgeResponse(""), undefined);
 });

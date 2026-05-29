@@ -72,14 +72,24 @@ export function buildNudgePayload(toolName: string, input: unknown): string | un
   return undefined;
 }
 
+const STALE_NUDGE_SUGGESTIONS = new Map<string, string>([["cymbal ls --names", "cymbal ls"]]);
+
+function normalizeNudgeSuggestion(suggest: string): string | undefined {
+  const trimmed = suggest.trim();
+  if (!trimmed) return undefined;
+  return STALE_NUDGE_SUGGESTIONS.get(trimmed) ?? trimmed;
+}
+
 export function parseNudgeResponse(output: string): NudgeSuggestion | undefined {
   const trimmed = output.trim();
   if (!trimmed) return undefined;
   try {
     const value = JSON.parse(trimmed) as Partial<NudgeSuggestion>;
-    if (typeof value.suggest !== "string" || !value.suggest.trim()) return undefined;
+    if (typeof value.suggest !== "string") return undefined;
+    const suggest = normalizeNudgeSuggestion(value.suggest);
+    if (!suggest) return undefined;
     return {
-      suggest: value.suggest,
+      suggest,
       why: typeof value.why === "string" ? value.why : undefined,
       tool: typeof value.tool === "string" ? value.tool : undefined,
     };
