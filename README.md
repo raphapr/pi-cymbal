@@ -20,7 +20,8 @@ Pi has file and shell tools. `pi-cymbal` adds Cymbal tools so agents can inspect
 ## Requirements
 
 - Pi
-- Cymbal `v0.13.5+` for the full tool set
+- Cymbal `v0.14.0+` for the full tool set, including `cymbal_changed` and the `resolveScope`, `noTests`, `includeUnresolved`, and graph params
+- Older Cymbal still works for everything except `cymbal_changed`. `cymbal_changed` is always registered but availability-gated: it preflights `cymbal changed --help` and fails with a clear error if the `changed` command is unavailable. The new opt-in flags hard-error (`unknown flag`, non-zero exit) on older Cymbal if used, so an agent can retry without them.
 - Cymbal binary on `PATH`, or `CYMBAL_BIN` set
 
 ```sh
@@ -71,6 +72,7 @@ Find references to registerCymbalHooks with Cymbal.
 | Upstream impact                | `cymbal_impact`                   | `cymbal impact <symbol>`             |
 | Import relationships           | `cymbal_importers`                | `cymbal importers <file-or-package>` |
 | Implementation relationships   | `cymbal_impls`                    | `cymbal impls <symbol>`              |
+| Diff-scoped impact             | `cymbal_changed`                  | `cymbal changed`                     |
 | Symbol diff                    | `cymbal_diff`                     | `cymbal diff <symbol> [base]`        |
 | Explicit index refresh         | `cymbal_index`                    | `cymbal index [path]`                |
 | Guided investigation           | `cymbal_investigate`              | `cymbal investigate <symbol>`        |
@@ -95,6 +97,19 @@ Use `cymbal_search`, `cymbal_outline`, and `cymbal_show` instead of broad grep/r
 ### Check relationships before refactors
 
 Use `cymbal_refs`, `cymbal_impact`, `cymbal_importers`, and `cymbal_impls` before changing exported symbols or imports.
+
+### Review what your diff affects
+
+Use `cymbal_changed` to see the changed symbols of your current git diff plus their references and transitive impact in one call, before refactors or PRs. Scope it with `staged` (staged changes) or `base` (diff against a git ref); the two cannot be combined. Tune the blast radius with `depth`, `limit`, `maxSymbols`, `maxImpact`, `noTests`, and `resolveScope`.
+
+### Cross-language and blast-radius params
+
+- `resolveScope` (`same` | `family` | `all`, default `family`) on `cymbal_impact`, `cymbal_trace`, `cymbal_investigate`, and `cymbal_changed` constrains cross-language name resolution.
+- `noTests` on `cymbal_impact` and `cymbal_changed` excludes callers in test files from the impact set.
+- `includeUnresolved` keeps unresolved targets that are otherwise filtered out: on `cymbal_trace` it affects text, JSON, and graph output; on `cymbal_impact` it adds unresolved nodes to the graph output.
+- `graph`, `graphFormat` (`mermaid` | `dot` | `json`), and `graphLimit` on `cymbal_impact` and `cymbal_trace` render call graphs, matching `cymbal_importers` and `cymbal_impls`.
+
+> Note: in Cymbal `v0.14.0`, single-symbol `cymbal_trace`/`cymbal_impact` `--json` output is object-shaped (previously array-wrapped). pi-cymbal only re-pretty-prints this JSON, so the change is surfaced verbatim.
 
 ### Review diffs by symbol
 
