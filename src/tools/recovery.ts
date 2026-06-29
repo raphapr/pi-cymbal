@@ -33,6 +33,7 @@ function isNotFoundOutput(output: string): boolean {
     /no importers found/i.test(output) ||
     /no callers found/i.test(output) ||
     /no outgoing calls found/i.test(output) ||
+    /no changed symbols found/i.test(output) ||
     /file not found/i.test(output) ||
     /symbol not found/i.test(output) ||
     /no requested symbol or file resolved/i.test(output)

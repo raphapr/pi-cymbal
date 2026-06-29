@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerCymbalHooks } from "./hooks.js";
+import { registerChangedTool } from "./tools/changed.js";
 import { registerDiffTool } from "./tools/diff.js";
 import { registerImpactTool } from "./tools/impact.js";
 import { registerImplsTool } from "./tools/impls.js";
@@ -25,6 +26,7 @@ export default function cymbalExtension(pi: ExtensionAPI): void {
   registerImpactTool(pi);
   registerImportersTool(pi);
   registerImplsTool(pi);
+  registerChangedTool(pi);
   registerOptionalTools(pi);
   registerCymbalHooks(pi);
 }

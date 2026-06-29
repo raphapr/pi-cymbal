@@ -15,6 +15,7 @@ test("extension registers expected tools and command", () => {
   extension(pi);
 
   assert.deepEqual(tools.sort(), [
+    "cymbal_changed",
     "cymbal_context",
     "cymbal_diff",
     "cymbal_impact",

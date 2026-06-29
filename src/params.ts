@@ -4,6 +4,7 @@ import { normalizePathArg, type OutputFormat } from "./cymbal.js";
 
 export const FormatParam = Type.Optional(StringEnum(["agent", "json"] as const, { description: "Output format. Defaults to agent-native Cymbal output." }));
 export const GraphFormatParam = Type.Optional(StringEnum(["mermaid", "dot", "json"] as const));
+export const ResolveScopeParam = Type.Optional(StringEnum(["same", "family", "all"] as const, { description: "Cross-language resolution scope. Defaults to family." }));
 
 export const MapParams = Type.Object({
   path: Type.Optional(Type.String({ description: "Directory scope. Defaults to ." })),
@@ -86,6 +87,12 @@ export const ImpactParams = Type.Object({
   context: Type.Optional(Type.Number({ description: "Lines of context around each call site." })),
   depth: Type.Optional(Type.Number({ description: "Impact depth." })),
   limit: Type.Optional(Type.Number({ description: "Maximum results." })),
+  noTests: Type.Optional(Type.Boolean({ description: "Exclude callers in test files from the impact set." })),
+  resolveScope: ResolveScopeParam,
+  graph: Type.Optional(Type.Boolean({ description: "Emit graph output." })),
+  graphFormat: GraphFormatParam,
+  graphLimit: Type.Optional(Type.Number({ description: "Graph limit." })),
+  includeUnresolved: Type.Optional(Type.Boolean({ description: "Include unresolved graph nodes." })),
   format: FormatParam,
 });
 
@@ -118,6 +125,7 @@ export const ImplsParams = Type.Object({
 export const InvestigateParams = Type.Object({
   symbol: Type.Optional(Type.String({ description: "Target symbol." })),
   symbols: Type.Optional(Type.Array(Type.String(), { description: "Additional target symbols." })),
+  resolveScope: ResolveScopeParam,
   format: FormatParam,
 });
 
@@ -127,6 +135,23 @@ export const TraceParams = Type.Object({
   depth: Type.Optional(Type.Number({ description: "Trace depth." })),
   kinds: Type.Optional(Type.String({ description: "Comma-separated ref kinds to follow." })),
   limit: Type.Optional(Type.Number({ description: "Maximum results per symbol." })),
+  includeUnresolved: Type.Optional(Type.Boolean({ description: "Include unresolved targets in text, JSON, and graph output." })),
+  resolveScope: ResolveScopeParam,
+  graph: Type.Optional(Type.Boolean({ description: "Emit graph output." })),
+  graphFormat: GraphFormatParam,
+  graphLimit: Type.Optional(Type.Number({ description: "Graph limit." })),
+  format: FormatParam,
+});
+
+export const ChangedParams = Type.Object({
+  staged: Type.Optional(Type.Boolean({ description: "Use staged changes instead of the working tree. Cannot be combined with base." })),
+  base: Type.Optional(Type.String({ description: "Diff against this git base ref. Cannot be combined with staged." })),
+  depth: Type.Optional(Type.Number({ description: "Impact depth." })),
+  limit: Type.Optional(Type.Number({ description: "Maximum results." })),
+  maxSymbols: Type.Optional(Type.Number({ description: "Maximum changed symbols to analyze." })),
+  maxImpact: Type.Optional(Type.Number({ description: "Maximum impacted symbols to report." })),
+  noTests: Type.Optional(Type.Boolean({ description: "Exclude callers in test files from the impact set." })),
+  resolveScope: ResolveScopeParam,
   format: FormatParam,
 });
 
@@ -217,6 +242,12 @@ export interface ImpactArgs {
   context?: number;
   depth?: number;
   limit?: number;
+  noTests?: boolean;
+  resolveScope?: "same" | "family" | "all";
+  graph?: boolean;
+  graphFormat?: "mermaid" | "dot" | "json";
+  graphLimit?: number;
+  includeUnresolved?: boolean;
   format?: OutputFormat;
 }
 
@@ -249,6 +280,7 @@ export interface ImplsArgs {
 export interface InvestigateArgs {
   symbol?: string;
   symbols?: string[];
+  resolveScope?: "same" | "family" | "all";
   format?: OutputFormat;
 }
 
@@ -258,6 +290,23 @@ export interface TraceArgs {
   depth?: number;
   kinds?: string;
   limit?: number;
+  includeUnresolved?: boolean;
+  resolveScope?: "same" | "family" | "all";
+  graph?: boolean;
+  graphFormat?: "mermaid" | "dot" | "json";
+  graphLimit?: number;
+  format?: OutputFormat;
+}
+
+export interface ChangedArgs {
+  staged?: boolean;
+  base?: string;
+  depth?: number;
+  limit?: number;
+  maxSymbols?: number;
+  maxImpact?: number;
+  noTests?: boolean;
+  resolveScope?: "same" | "family" | "all";
   format?: OutputFormat;
 }
 
@@ -285,6 +334,10 @@ function pushGraphArgs(args: string[], options: { graph?: boolean; graphFormat?:
   if (options.graph) args.push("--graph");
   if (options.graphFormat) args.push("--graph-format", options.graphFormat);
   pushNumber(args, "--graph-limit", options.graphLimit);
+}
+
+function pushResolveScope(args: string[], scope?: "same" | "family" | "all"): void {
+  if (scope) args.push("--resolve-scope", scope);
 }
 
 function pushRepeatedPaths(args: string[], flag: string, values?: string | string[]): void {
@@ -413,6 +466,10 @@ export function buildImpactArgs(params: ImpactArgs): string[] {
   pushNumber(args, "--context", params.context);
   pushNumber(args, "--depth", params.depth);
   pushNumber(args, "--limit", params.limit);
+  if (params.noTests) args.push("--no-tests");
+  pushResolveScope(args, params.resolveScope);
+  pushGraphArgs(args, params);
+  if (params.includeUnresolved) args.push("--include-unresolved");
   return addJson(args, params.format);
 }
 
@@ -446,7 +503,9 @@ export function buildImplsArgs(params: ImplsArgs): string[] {
 export function buildInvestigateArgs(params: InvestigateArgs): string[] {
   const symbols = collectSymbols(params.symbol, params.symbols);
   if (!symbols.length) throw new Error("symbol or symbols is required");
-  return addJson(["investigate", ...symbols], params.format);
+  const args = ["investigate", ...symbols];
+  pushResolveScope(args, params.resolveScope);
+  return addJson(args, params.format);
 }
 
 export function buildTraceArgs(params: TraceArgs): string[] {
@@ -456,6 +515,23 @@ export function buildTraceArgs(params: TraceArgs): string[] {
   pushNumber(args, "--depth", params.depth);
   if (params.kinds) args.push("--kinds", params.kinds);
   pushNumber(args, "--limit", params.limit);
+  if (params.includeUnresolved) args.push("--include-unresolved");
+  pushResolveScope(args, params.resolveScope);
+  pushGraphArgs(args, params);
+  return addJson(args, params.format);
+}
+
+export function buildChangedArgs(params: ChangedArgs): string[] {
+  if (params.staged && params.base) throw new Error("staged cannot be combined with base");
+  const args = ["changed"];
+  if (params.staged) args.push("--staged");
+  if (params.base) args.push("--base", params.base);
+  pushNumber(args, "--depth", params.depth);
+  pushNumber(args, "--limit", params.limit);
+  pushNumber(args, "--max-symbols", params.maxSymbols);
+  pushNumber(args, "--max-impact", params.maxImpact);
+  if (params.noTests) args.push("--no-tests");
+  pushResolveScope(args, params.resolveScope);
   return addJson(args, params.format);
 }
 

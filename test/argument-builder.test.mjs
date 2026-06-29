@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Check } from "typebox/value";
 import {
+  buildChangedArgs,
   buildContextArgs,
   buildDiffArgs,
   buildImplsArgs,
@@ -16,8 +17,12 @@ import {
   buildShowArgs,
   buildStructureArgs,
   buildTraceArgs,
+  ChangedParams,
+  ImpactParams,
+  InvestigateParams,
   SearchParams,
   ShowParams,
+  TraceParams,
 } from "../src/params.ts";
 
 test("buildMapArgs maps stats and depth", () => {
@@ -128,6 +133,58 @@ test("buildRefsArgs does not pass depth without importers or impact", () => {
 
 test("buildImpactArgs uses cymbal impact", () => {
   assert.deepEqual(buildImpactArgs({ symbol: "handleAuth", symbols: ["saveAuth"], context: 1, depth: 2, limit: 5, format: "json" }), ["impact", "handleAuth", "saveAuth", "--context", "1", "--depth", "2", "--limit", "5", "--json"]);
+});
+
+test("buildImpactArgs default call is unchanged (regression)", () => {
+  assert.deepEqual(buildImpactArgs({ symbol: "x" }), ["impact", "x"]);
+});
+
+test("buildImpactArgs maps no-tests, resolve-scope, and graph family", () => {
+  assert.deepEqual(
+    buildImpactArgs({ symbol: "handleAuth", noTests: true, resolveScope: "family", graph: true, graphFormat: "dot", graphLimit: 25, includeUnresolved: true }),
+    ["impact", "handleAuth", "--no-tests", "--resolve-scope", "family", "--graph", "--graph-format", "dot", "--graph-limit", "25", "--include-unresolved"],
+  );
+});
+
+test("buildTraceArgs default call is unchanged (regression)", () => {
+  assert.deepEqual(buildTraceArgs({ symbol: "x" }), ["trace", "x"]);
+});
+
+test("buildTraceArgs maps include-unresolved, resolve-scope, and graph family", () => {
+  assert.deepEqual(
+    buildTraceArgs({ symbol: "handleAuth", depth: 4, includeUnresolved: true, resolveScope: "all", graph: true, graphFormat: "mermaid", graphLimit: 10 }),
+    ["trace", "handleAuth", "--depth", "4", "--include-unresolved", "--resolve-scope", "all", "--graph", "--graph-format", "mermaid", "--graph-limit", "10"],
+  );
+});
+
+test("buildInvestigateArgs maps resolve-scope", () => {
+  assert.deepEqual(buildInvestigateArgs({ symbol: "handleAuth", resolveScope: "same" }), ["investigate", "handleAuth", "--resolve-scope", "same"]);
+});
+
+test("buildChangedArgs defaults to bare changed", () => {
+  assert.deepEqual(buildChangedArgs({}), ["changed"]);
+});
+
+test("buildChangedArgs maps staged and json", () => {
+  assert.deepEqual(buildChangedArgs({ staged: true, format: "json" }), ["changed", "--staged", "--json"]);
+});
+
+test("buildChangedArgs maps base and tuning flags", () => {
+  assert.deepEqual(
+    buildChangedArgs({ base: "main", depth: 3, limit: 20, maxSymbols: 50, maxImpact: 100, noTests: true, resolveScope: "all" }),
+    ["changed", "--base", "main", "--depth", "3", "--limit", "20", "--max-symbols", "50", "--max-impact", "100", "--no-tests", "--resolve-scope", "all"],
+  );
+});
+
+test("buildChangedArgs rejects combining staged and base", () => {
+  assert.throws(() => buildChangedArgs({ staged: true, base: "main" }), /staged.*base|base.*staged/);
+});
+
+test("resolveScope params reject values outside the enum", () => {
+  for (const params of [ImpactParams, TraceParams, InvestigateParams, ChangedParams]) {
+    assert.equal(Check(params, { resolveScope: "family" }), true);
+    assert.equal(Check(params, { resolveScope: "bogus" }), false);
+  }
 });
 
 test("buildImportersArgs maps include unresolved", () => {
