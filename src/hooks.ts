@@ -19,6 +19,7 @@ export interface HookDeps {
 
 export interface HookContext {
   cwd: string;
+  signal?: AbortSignal;
   hasUI?: boolean;
   ui?: {
     notify?: (message: string, type?: "info" | "warning" | "error") => void;
@@ -119,7 +120,25 @@ export function createCymbalHooks(deps: HookDeps = {}) {
   const run = deps.run ?? runCymbal;
   const now = deps.now ?? Date.now;
   const seenSuggestions = new Map<string, number>();
+  const inFlight = new Map<string, Promise<void>>();
+  const tracked = new Set<Promise<unknown>>();
+  let sessionController = new AbortController();
+  let acceptingWork = true;
   let reminderText = "";
+
+  function track<T>(promise: Promise<T>): Promise<T> {
+    tracked.add(promise);
+    void promise.finally(() => tracked.delete(promise)).catch(() => undefined);
+    return promise;
+  }
+
+  async function settleTracked(): Promise<void> {
+    while (tracked.size) await Promise.allSettled([...tracked]);
+  }
+
+  function combinedSignal(signal?: AbortSignal): AbortSignal {
+    return signal ? AbortSignal.any([signal, sessionController.signal]) : sessionController.signal;
+  }
 
   function shouldSuppressSuggestion(cwd: string, suggest: string, toolName: string): boolean {
     const currentTime = now();
@@ -135,20 +154,65 @@ export function createCymbalHooks(deps: HookDeps = {}) {
     return false;
   }
 
-  return {
+  async function runNudge(event: ToolCallEventLike, ctx: HookContext, payload: string): Promise<void> {
+    try {
+      const result = await run({
+        cwd: ctx.cwd,
+        args: ["hook", "nudge", "--format=json"],
+        input: payload,
+        timeoutMs: 5_000,
+        signal: combinedSignal(ctx.signal),
+      });
+      const suggestion = parseNudgeResponse(result.stdout);
+      if (!suggestion || shouldSuppressSuggestion(ctx.cwd, suggestion.suggest, event.toolName)) return;
+
+      const content = buildNudgeMessage(suggestion);
+      await deps.sendMessage?.({ customType: "pi-cymbal-nudge", content, display: false });
+      if (ctx.hasUI && ctx.ui?.notify) ctx.ui.notify(content, "info");
+    } catch {
+      return;
+    }
+  }
+
+  const hooks = {
+    async startSession(): Promise<void> {
+      acceptingWork = false;
+      if (!sessionController.signal.aborted) sessionController.abort(new DOMException("Cymbal session replaced", "AbortError"));
+      await settleTracked();
+      inFlight.clear();
+      seenSuggestions.clear();
+      reminderText = "";
+      sessionController = new AbortController();
+      acceptingWork = true;
+    },
+
+    async shutdown(): Promise<void> {
+      acceptingWork = false;
+      if (!sessionController.signal.aborted) sessionController.abort(new DOMException("Cymbal session shut down", "AbortError"));
+      await settleTracked();
+      inFlight.clear();
+      seenSuggestions.clear();
+      reminderText = "";
+    },
+
     async refreshReminder(ctx: HookContext): Promise<boolean> {
-      try {
-        const result = await run({
-          cwd: ctx.cwd,
-          args: ["hook", "remind", "--format=text", "--update=if-stale"],
-          timeoutMs: 5_000,
-        });
-        reminderText = result.stdout.trim();
-        return true;
-      } catch {
-        reminderText = "";
-        return false;
-      }
+      if (!acceptingWork) return false;
+      const operation = (async () => {
+        try {
+          const result = await run({
+            cwd: ctx.cwd,
+            args: ["hook", "remind", "--format=text", "--update=if-stale"],
+            timeoutMs: 5_000,
+            signal: combinedSignal(ctx.signal),
+          });
+          reminderText = result.stdout.trim();
+          return true;
+        } catch {
+          reminderText = "";
+          return false;
+        }
+      })();
+      return await track(operation);
     },
 
     injectReminder(event: { systemPrompt: string }): { systemPrompt: string } {
@@ -163,45 +227,41 @@ export function createCymbalHooks(deps: HookDeps = {}) {
       ctx.ui?.setToolsExpanded?.(false);
     },
 
-    async handleToolCall(event: ToolCallEventLike, ctx: HookContext): Promise<void> {
+    handleToolCall(event: ToolCallEventLike, ctx: HookContext): Promise<void> {
       const payload = buildNudgePayload(event.toolName, event.input);
-      if (!payload) return;
+      if (!payload || !acceptingWork) return Promise.resolve();
 
-      try {
-        const result = await run({
-          cwd: ctx.cwd,
-          args: ["hook", "nudge", "--format=json"],
-          input: payload,
-          timeoutMs: 5_000,
-        });
-        const suggestion = parseNudgeResponse(result.stdout);
-        if (!suggestion || shouldSuppressSuggestion(ctx.cwd, suggestion.suggest, event.toolName)) return;
+      const key = `${ctx.cwd}\u0000${payload}`;
+      const existing = inFlight.get(key);
+      if (existing) return existing;
 
-        const content = buildNudgeMessage(suggestion);
-        await deps.sendMessage?.({ customType: "pi-cymbal-nudge", content, display: false });
-        if (ctx.hasUI && ctx.ui?.notify) ctx.ui.notify(content, "info");
-      } catch {
-        return;
-      }
+      const task = track(runNudge(event, ctx, payload));
+      inFlight.set(key, task);
+      void task.finally(() => {
+        if (inFlight.get(key) === task) inFlight.delete(key);
+      }).catch(() => undefined);
+      return task;
+    },
+
+    startToolCall(event: ToolCallEventLike, ctx: HookContext): void {
+      void hooks.handleToolCall(event, ctx);
     },
   };
+
+  return hooks;
 }
 
-export function registerCymbalHooks(pi: ExtensionAPI): void {
+export function registerCymbalHooks(pi: ExtensionAPI): ReturnType<typeof createCymbalHooks> {
   const hooks = createCymbalHooks({
     sendMessage: async (message) => {
       await pi.sendMessage(message);
     },
   });
 
-  pi.on("session_start", async (_event: unknown, ctx: HookContext) => {
-    await hooks.refreshReminder(ctx);
-  });
-
   pi.on("before_agent_start", (event: { systemPrompt: string }) => hooks.injectReminder(event));
 
   pi.on("tool_call", (event: ToolCallEventLike, ctx: HookContext) => {
-    void hooks.handleToolCall(event, ctx);
+    hooks.startToolCall(event, ctx);
   });
 
   pi.on("tool_execution_start", (event: ToolExecutionStartEventLike, ctx: HookContext) => {
@@ -217,4 +277,6 @@ export function registerCymbalHooks(pi: ExtensionAPI): void {
       }
     },
   });
+
+  return hooks;
 }

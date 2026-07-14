@@ -48,8 +48,32 @@ test("cymbal_impls scopes absolute include and exclude filters", async () => {
     );
 
     assert.equal(calls[0].cwd, repo);
-    assert.deepEqual(calls[0].args, ["impls", "Reader", "Writer", "--lang", "typescript", "--path", "src", "--exclude", "test", "--resolved"]);
+    assert.deepEqual(calls[0].args, ["impls", "--lang", "typescript", "--path", "src", "--exclude", "test", "--resolved", "--", "Reader", "Writer"]);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
+});
+
+test("cymbal_impls applies JSON graph output and limit", async () => {
+  const calls = [];
+  const pi = { registerTool(tool) { this.tool = tool; } };
+  registerImplsTool(pi);
+
+  const result = await pi.tool.execute(
+    "call-1",
+    { symbol: "Reader", graphFormat: "json", limit: 12, format: "agent" },
+    undefined,
+    undefined,
+    {
+      cwd: process.cwd(),
+      runCymbal: async (options) => {
+        calls.push(options.args);
+        return { command: `cymbal ${options.args.join(" ")}`, args: options.args, cwd: options.cwd, stdout: '{"nodes":[]}', stderr: "", code: 0 };
+      },
+    },
+  );
+
+  assert.deepEqual(calls[0], ["impls", "--limit", "12", "--graph", "--graph-format", "json", "--", "Reader"]);
+  assert.equal(result.details.outputFormat, "json");
+  assert.equal(result.details.parsedJson, true);
 });

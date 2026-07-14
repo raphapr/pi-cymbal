@@ -287,6 +287,39 @@ test("nudge suppresses distinct Read and Glob suggestions by tool class per cwd"
   assert.match(messages[3].content, /Use Read src\/c\.ts/);
 });
 
+test("concurrent identical nudges share one in-flight run", async () => {
+  let calls = 0;
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const hooks = createCymbalHooks({
+    run: async (options) => {
+      calls += 1;
+      await gate;
+      return { command: "cymbal hook nudge", args: options.args, cwd: options.cwd, stdout: "", stderr: "", code: 0 };
+    },
+  });
+  const event = { toolName: "bash", input: { command: "rg auth" } };
+  const first = hooks.handleToolCall(event, { cwd: "/repo" });
+  const second = hooks.handleToolCall(event, { cwd: "/repo" });
+  assert.equal(calls, 1);
+  release();
+  await Promise.all([first, second]);
+});
+
+test("hook shutdown aborts and awaits tracked work", async () => {
+  let observedSignal;
+  const hooks = createCymbalHooks({
+    run: async (options) => {
+      observedSignal = options.signal;
+      await new Promise((resolve) => options.signal.addEventListener("abort", resolve, { once: true }));
+      throw options.signal.reason;
+    },
+  });
+  hooks.startToolCall({ toolName: "bash", input: { command: "rg auth" } }, { cwd: "/repo" });
+  await hooks.shutdown();
+  assert.equal(observedSignal.aborted, true);
+});
+
 test("hooks only invoke remind or nudge commands and never index", async () => {
   const calls = [];
   const hooks = createCymbalHooks({

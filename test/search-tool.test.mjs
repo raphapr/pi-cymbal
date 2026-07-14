@@ -79,25 +79,25 @@ test("resolveSearchRun does not use absolute exclude filters to select the repo"
   );
 
   assert.equal(run.cwd, "/repo/other");
-  assert.deepEqual(run.params, { query: "registerSearchTool", path: "src", exclude: "/repo/pi-cymbal/test" });
+  assert.deepEqual(run.params, { query: "registerSearchTool", path: "/repo/other/src", exclude: "/repo/pi-cymbal/test" });
 });
 
-test("resolveSearchRun leaves cross-repo absolute include filters as pass-through", () => {
-  const run = resolveSearchRun(
-    { query: "registerSearchTool", path: ["/repo/first/src", "/repo/second/src"] },
-    "/repo/pi-cymbal",
-    fakeFs({ directories: ["/repo/first/src", "/repo/first", "/repo/second/src", "/repo/second"], repoRoots: ["/repo/first", "/repo/second"] }),
+test("resolveSearchRun rejects cross-repo absolute include filters", () => {
+  assert.throws(
+    () => resolveSearchRun(
+      { query: "registerSearchTool", path: ["/repo/first/src", "/repo/second/src"] },
+      "/repo/pi-cymbal",
+      fakeFs({ directories: ["/repo/first/src", "/repo/first", "/repo/second/src", "/repo/second"], repoRoots: ["/repo/first", "/repo/second"] }),
+    ),
+    /different repositories/,
   );
-
-  assert.equal(run.cwd, "/repo/pi-cymbal");
-  assert.deepEqual(run.params, { query: "registerSearchTool", path: ["/repo/first/src", "/repo/second/src"] });
 });
 
-test("resolveSearchRun keeps relative glob filters unchanged", () => {
+test("resolveSearchRun resolves relative glob filters against the original cwd", () => {
   const run = resolveSearchRun({ query: "registerSearchTool", path: "src/**/*.ts", exclude: "**/*.test.ts" }, "/repo/pi-cymbal");
 
   assert.equal(run.cwd, "/repo/pi-cymbal");
-  assert.deepEqual(run.params, { query: "registerSearchTool", path: "src/**/*.ts", exclude: "**/*.test.ts" });
+  assert.deepEqual(run.params, { query: "registerSearchTool", path: "/repo/pi-cymbal/src/**/*.ts", exclude: "/repo/pi-cymbal/**/*.test.ts" });
 });
 
 test("resolveSearchRun does not switch to a non-Git absolute path", () => {
@@ -111,11 +111,11 @@ test("resolveSearchRun does not switch to a non-Git absolute path", () => {
   assert.deepEqual(run.params, { query: "registerSearchTool", path: "/tmp/notrepo" });
 });
 
-test("resolveSearchRun keeps relative paths as Cymbal path filters", () => {
+test("resolveSearchRun resolves relative path filters against the original cwd", () => {
   const run = resolveSearchRun({ query: "registerCymbalHooks", path: "src" }, "/repo/pi-cymbal");
 
   assert.equal(run.cwd, "/repo/pi-cymbal");
-  assert.deepEqual(run.params, { query: "registerCymbalHooks", path: "src" });
+  assert.deepEqual(run.params, { query: "registerCymbalHooks", path: "/repo/pi-cymbal/src" });
 });
 
 test("noResultsSearchResult converts Cymbal no-result exits into visible output", () => {

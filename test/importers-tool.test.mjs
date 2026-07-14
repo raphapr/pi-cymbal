@@ -48,7 +48,7 @@ test("cymbal_importers scopes absolute file targets to their repo root", async (
     );
 
     assert.equal(calls[0].cwd, repo);
-    assert.deepEqual(calls[0].args, ["importers", "src/index.ts", "--depth", "2", "--include-unresolved"]);
+    assert.deepEqual(calls[0].args, ["importers", "--depth", "2", "--include-unresolved", "--", "src/index.ts"]);
     assert.equal(result.content[0].text, "importers output");
   } finally {
     await rm(repo, { recursive: true, force: true });
@@ -86,5 +86,29 @@ test("cymbal_importers preserves scoped package targets", async () => {
     },
   );
 
-  assert.deepEqual(calls[0].args, ["importers", "@earendil-works/pi-ai"]);
+  assert.deepEqual(calls[0].args, ["importers", "--", "@earendil-works/pi-ai"]);
+});
+
+test("cymbal_importers applies JSON graph output and limit", async () => {
+  const calls = [];
+  const pi = { registerTool(tool) { this.tool = tool; } };
+  registerImportersTool(pi);
+
+  const result = await pi.tool.execute(
+    "call-1",
+    { target: "package/name", graphLimit: 5, limit: 20, format: "agent" },
+    undefined,
+    undefined,
+    {
+      cwd: process.cwd(),
+      runCymbal: async (options) => {
+        calls.push(options.args);
+        return { command: `cymbal ${options.args.join(" ")}`, args: options.args, cwd: options.cwd, stdout: '{"nodes":[]}', stderr: "", code: 0 };
+      },
+    },
+  );
+
+  assert.deepEqual(calls[0], ["importers", "--limit", "20", "--graph", "--graph-format", "json", "--graph-limit", "5", "--", "package/name"]);
+  assert.equal(result.details.outputFormat, "json");
+  assert.equal(result.details.parsedJson, true);
 });

@@ -18,19 +18,23 @@ import {
   buildStructureArgs,
   buildTraceArgs,
   ChangedParams,
+  ImplsParams,
   ImpactParams,
+  ImportersParams,
   InvestigateParams,
+  MapParams,
+  OutlineParams,
   SearchParams,
   ShowParams,
   TraceParams,
 } from "../src/params.ts";
 
 test("buildMapArgs maps stats and depth", () => {
-  assert.deepEqual(buildMapArgs({ path: "@src", stats: true, depth: 2, format: "json" }), ["ls", "src", "--stats", "--depth", "2", "--json"]);
+  assert.deepEqual(buildMapArgs({ path: "@src", stats: true, depth: 2, format: "json" }), ["ls", "--stats", "--depth", "2", "--json", "--", "src"]);
 });
 
 test("buildMapArgs defaults to current path and stats", () => {
-  assert.deepEqual(buildMapArgs({}), ["ls", ".", "--stats"]);
+  assert.deepEqual(buildMapArgs({}), ["ls", "--stats", "--", "."]);
 });
 
 test("buildMapArgs rejects repos combinations", () => {
@@ -42,23 +46,23 @@ test("buildStructureArgs maps limit", () => {
 });
 
 test("buildDiffArgs maps base and stat", () => {
-  assert.deepEqual(buildDiffArgs({ symbol: "buildSearchArgs", base: "main", stat: true, format: "json" }), ["diff", "buildSearchArgs", "main", "--stat", "--json"]);
+  assert.deepEqual(buildDiffArgs({ symbol: "buildSearchArgs", base: "main", stat: true, format: "json" }), ["diff", "--stat", "--json", "--", "buildSearchArgs", "main"]);
 });
 
 test("buildIndexArgs maps path and indexing flags", () => {
-  assert.deepEqual(buildIndexArgs({ path: "@src", force: true, workers: 4, exclude: ["test", "dist"], includeGenerated: true, includeLargeFiles: true, format: "json" }), ["index", "src", "--force", "--workers", "4", "--exclude", "test", "--exclude", "dist", "--include-generated", "--include-large-files", "--json"]);
+  assert.deepEqual(buildIndexArgs({ path: "@src", force: true, workers: 4, exclude: ["test", "dist"], includeGenerated: true, includeLargeFiles: true, format: "json" }), ["index", "--force", "--workers", "4", "--exclude", "test", "--exclude", "dist", "--include-generated", "--include-large-files", "--json", "--", "src"]);
 });
 
 test("buildSearchArgs maps symbol filters", () => {
-  assert.deepEqual(buildSearchArgs({ query: "handleAuth", queries: ["UserService"], exact: true, kind: "function", lang: "typescript", limit: 10, path: ["src"], exclude: ["test"], format: "agent" }), ["search", "handleAuth", "UserService", "--exact", "--kind", "function", "--lang", "typescript", "--limit", "10", "--path", "src", "--exclude", "test"]);
+  assert.deepEqual(buildSearchArgs({ query: "handleAuth", queries: ["UserService"], exact: true, kind: "function", lang: "typescript", limit: 10, path: ["src"], exclude: ["test"], format: "agent" }), ["search", "--exact", "--kind", "function", "--lang", "typescript", "--limit", "10", "--path", "src", "--exclude", "test", "--", "handleAuth", "UserService"]);
 });
 
 test("buildSearchArgs quotes hyphenated symbol queries", () => {
-  assert.deepEqual(buildSearchArgs({ query: "registerCymbalHooks", queries: ["include-arguments"], limit: 20, path: "src" }), ["search", "registerCymbalHooks", "\"include-arguments\"", "--limit", "20", "--path", "src"]);
+  assert.deepEqual(buildSearchArgs({ query: "registerCymbalHooks", queries: ["include-arguments"], limit: 20, path: "src" }), ["search", "--limit", "20", "--path", "src", "--", "registerCymbalHooks", "\"include-arguments\""]);
 });
 
 test("buildSearchArgs accepts additional queries without a primary query", () => {
-  assert.deepEqual(buildSearchArgs({ queries: ["n8n_business", "api_gateway_n8n_shared"], limit: 20 }), ["search", "n8n_business", "api_gateway_n8n_shared", "--limit", "20"]);
+  assert.deepEqual(buildSearchArgs({ queries: ["n8n_business", "api_gateway_n8n_shared"], limit: 20 }), ["search", "--limit", "20", "--", "n8n_business", "api_gateway_n8n_shared"]);
 });
 
 test("buildSearchArgs rejects empty symbol searches", () => {
@@ -66,15 +70,15 @@ test("buildSearchArgs rejects empty symbol searches", () => {
 });
 
 test("buildSearchArgs maps text search", () => {
-  assert.deepEqual(buildSearchArgs({ query: "needle", text: true, path: "src", format: "json" }), ["search", "--text", "needle", "--path", "src", "--json"]);
+  assert.deepEqual(buildSearchArgs({ query: "needle", text: true, path: "src", format: "json" }), ["search", "--text", "--path", "src", "--json", "--", "needle"]);
 });
 
 test("buildSearchArgs joins text search query words", () => {
-  assert.deepEqual(buildSearchArgs({ query: "needle", queries: ["other"], text: true }), ["search", "--text", "needle other"]);
+  assert.deepEqual(buildSearchArgs({ query: "needle", queries: ["other"], text: true }), ["search", "--text", "--", "needle other"]);
 });
 
 test("buildSearchArgs maps ignoreCase as exact unescaped symbol search", () => {
-  assert.deepEqual(buildSearchArgs({ query: "include-arguments", ignoreCase: true }), ["search", "include-arguments", "--exact", "--ignore-case"]);
+  assert.deepEqual(buildSearchArgs({ query: "include-arguments", ignoreCase: true }), ["search", "--exact", "--ignore-case", "--", "include-arguments"]);
 });
 
 test("buildSearchArgs rejects invalid ignoreCase combinations", () => {
@@ -88,23 +92,23 @@ test("SearchParams does not expose deleted reserved input field", () => {
 });
 
 test("buildOutlineArgs maps files, names, and signatures", () => {
-  assert.deepEqual(buildOutlineArgs({ files: ["@src/index.ts"], names: true, signatures: true }), ["outline", "src/index.ts", "--names", "--signatures"]);
+  assert.deepEqual(buildOutlineArgs({ files: ["@src/index.ts"], names: true, signatures: true }), ["outline", "--names", "--signatures", "--", "src/index.ts"]);
 });
 
 test("buildOutlineArgs maps files and signatures", () => {
-  assert.deepEqual(buildOutlineArgs({ files: ["@src/index.ts"], signatures: true }), ["outline", "src/index.ts", "--signatures"]);
+  assert.deepEqual(buildOutlineArgs({ files: ["@src/index.ts"], signatures: true }), ["outline", "--signatures", "--", "src/index.ts"]);
 });
 
 test("buildShowArgs maps context", () => {
-  assert.deepEqual(buildShowArgs({ target: "@src/index.ts:1-10", context: 3, format: "json" }), ["show", "src/index.ts:1-10", "--context", "3", "--json"]);
+  assert.deepEqual(buildShowArgs({ target: "@src/index.ts:1-10", context: 3, format: "json" }), ["show", "--context", "3", "--json", "--", "src/index.ts:1-10"]);
 });
 
 test("buildShowArgs maps multiple targets", () => {
-  assert.deepEqual(buildShowArgs({ targets: ["@src/index.ts", "src/output.ts"], context: 2, format: "json" }), ["show", "src/index.ts", "src/output.ts", "--context", "2", "--json"]);
+  assert.deepEqual(buildShowArgs({ targets: ["@src/index.ts", "src/output.ts"], context: 2, format: "json" }), ["show", "--context", "2", "--json", "--", "src/index.ts", "src/output.ts"]);
 });
 
 test("buildShowArgs maps all and path filters", () => {
-  assert.deepEqual(buildShowArgs({ target: "registerCymbalHooks", all: true, path: ["src", "test"], exclude: "dist" }), ["show", "registerCymbalHooks", "--all", "--path", "src", "--path", "test", "--exclude", "dist"]);
+  assert.deepEqual(buildShowArgs({ target: "registerCymbalHooks", all: true, path: ["src", "test"], exclude: "dist" }), ["show", "--all", "--path", "src", "--path", "test", "--exclude", "dist", "--", "registerCymbalHooks"]);
 });
 
 test("buildShowArgs rejects invalid target combinations", () => {
@@ -124,41 +128,41 @@ test("ShowParams exposes top-level properties for Pi tool adapters", () => {
 });
 
 test("buildRefsArgs maps impact depth and limit", () => {
-  assert.deepEqual(buildRefsArgs({ symbol: "handleAuth", symbols: ["saveAuth"], impact: true, depth: 2, context: 3, file: "@src/index.ts", limit: 20, path: "src", exclude: ["test"] }), ["refs", "handleAuth", "saveAuth", "--impact", "--depth", "2", "--context", "3", "--file", "src/index.ts", "--limit", "20", "--path", "src", "--exclude", "test"]);
+  assert.deepEqual(buildRefsArgs({ symbol: "handleAuth", symbols: ["saveAuth"], impact: true, depth: 2, context: 3, file: "@src/index.ts", limit: 20, path: "src", exclude: ["test"] }), ["refs", "--impact", "--depth", "2", "--context", "3", "--file", "src/index.ts", "--limit", "20", "--path", "src", "--exclude", "test", "--", "handleAuth", "saveAuth"]);
 });
 
 test("buildRefsArgs does not pass depth without importers or impact", () => {
-  assert.deepEqual(buildRefsArgs({ symbol: "handleAuth", depth: 2 }), ["refs", "handleAuth"]);
+  assert.deepEqual(buildRefsArgs({ symbol: "handleAuth", depth: 2 }), ["refs", "--", "handleAuth"]);
 });
 
 test("buildImpactArgs uses cymbal impact", () => {
-  assert.deepEqual(buildImpactArgs({ symbol: "handleAuth", symbols: ["saveAuth"], context: 1, depth: 2, limit: 5, format: "json" }), ["impact", "handleAuth", "saveAuth", "--context", "1", "--depth", "2", "--limit", "5", "--json"]);
+  assert.deepEqual(buildImpactArgs({ symbol: "handleAuth", symbols: ["saveAuth"], context: 1, depth: 2, limit: 5, format: "json" }), ["impact", "--context", "1", "--depth", "2", "--limit", "5", "--json", "--", "handleAuth", "saveAuth"]);
 });
 
 test("buildImpactArgs default call is unchanged (regression)", () => {
-  assert.deepEqual(buildImpactArgs({ symbol: "x" }), ["impact", "x"]);
+  assert.deepEqual(buildImpactArgs({ symbol: "x" }), ["impact", "--", "x"]);
 });
 
 test("buildImpactArgs maps no-tests, resolve-scope, and graph family", () => {
   assert.deepEqual(
     buildImpactArgs({ symbol: "handleAuth", noTests: true, resolveScope: "family", graph: true, graphFormat: "dot", graphLimit: 25, includeUnresolved: true }),
-    ["impact", "handleAuth", "--no-tests", "--resolve-scope", "family", "--graph", "--graph-format", "dot", "--graph-limit", "25", "--include-unresolved"],
+    ["impact", "--no-tests", "--resolve-scope", "family", "--graph", "--graph-format", "dot", "--graph-limit", "25", "--include-unresolved", "--", "handleAuth"],
   );
 });
 
 test("buildTraceArgs default call is unchanged (regression)", () => {
-  assert.deepEqual(buildTraceArgs({ symbol: "x" }), ["trace", "x"]);
+  assert.deepEqual(buildTraceArgs({ symbol: "x" }), ["trace", "--", "x"]);
 });
 
 test("buildTraceArgs maps include-unresolved, resolve-scope, and graph family", () => {
   assert.deepEqual(
     buildTraceArgs({ symbol: "handleAuth", depth: 4, includeUnresolved: true, resolveScope: "all", graph: true, graphFormat: "mermaid", graphLimit: 10 }),
-    ["trace", "handleAuth", "--depth", "4", "--include-unresolved", "--resolve-scope", "all", "--graph", "--graph-format", "mermaid", "--graph-limit", "10"],
+    ["trace", "--depth", "4", "--include-unresolved", "--resolve-scope", "all", "--graph", "--graph-format", "mermaid", "--graph-limit", "10", "--", "handleAuth"],
   );
 });
 
 test("buildInvestigateArgs maps resolve-scope", () => {
-  assert.deepEqual(buildInvestigateArgs({ symbol: "handleAuth", resolveScope: "same" }), ["investigate", "handleAuth", "--resolve-scope", "same"]);
+  assert.deepEqual(buildInvestigateArgs({ symbol: "handleAuth", resolveScope: "same" }), ["investigate", "--resolve-scope", "same", "--", "handleAuth"]);
 });
 
 test("buildChangedArgs defaults to bare changed", () => {
@@ -188,15 +192,15 @@ test("resolveScope params reject values outside the enum", () => {
 });
 
 test("buildImportersArgs maps include unresolved", () => {
-  assert.deepEqual(buildImportersArgs({ target: "internal/auth", includeUnresolved: true }), ["importers", "internal/auth", "--include-unresolved"]);
+  assert.deepEqual(buildImportersArgs({ target: "internal/auth", includeUnresolved: true }), ["importers", "--include-unresolved", "--", "internal/auth"]);
 });
 
 test("buildImportersArgs maps graph flags", () => {
-  assert.deepEqual(buildImportersArgs({ target: "internal/auth", depth: 2, graph: true, graphFormat: "json", graphLimit: 50 }), ["importers", "internal/auth", "--depth", "2", "--graph", "--graph-format", "json", "--graph-limit", "50"]);
+  assert.deepEqual(buildImportersArgs({ target: "internal/auth", depth: 2, graph: true, graphFormat: "json", graphLimit: 50 }), ["importers", "--depth", "2", "--graph", "--graph-format", "json", "--graph-limit", "50", "--", "internal/auth"]);
 });
 
 test("buildImportersArgs preserves scoped package names", () => {
-  assert.deepEqual(buildImportersArgs({ target: "@earendil-works/pi-ai" }), ["importers", "@earendil-works/pi-ai"]);
+  assert.deepEqual(buildImportersArgs({ target: "@earendil-works/pi-ai" }), ["importers", "--", "@earendil-works/pi-ai"]);
 });
 
 test("buildImplsArgs requires symbol or of", () => {
@@ -205,20 +209,56 @@ test("buildImplsArgs requires symbol or of", () => {
 });
 
 test("buildImplsArgs maps batch symbols and filters", () => {
-  assert.deepEqual(buildImplsArgs({ symbol: "Reader", symbols: ["Writer"], lang: "go", path: ["src"], exclude: "test", resolved: true }), ["impls", "Reader", "Writer", "--lang", "go", "--path", "src", "--exclude", "test", "--resolved"]);
+  assert.deepEqual(buildImplsArgs({ symbol: "Reader", symbols: ["Writer"], lang: "go", path: ["src"], exclude: "test", resolved: true }), ["impls", "--lang", "go", "--path", "src", "--exclude", "test", "--resolved", "--", "Reader", "Writer"]);
 });
 
 test("buildImplsArgs rejects invalid combinations", () => {
   assert.throws(() => buildImplsArgs({ symbol: "Reader", resolved: true, unresolved: true }), /resolved cannot be combined with unresolved/);
-  assert.throws(() => buildImplsArgs({ of: "Reader", symbols: ["Writer"] }), /of cannot be combined with symbols/);
+  assert.throws(() => buildImplsArgs({ of: "Reader", symbols: ["Writer"] }), /of cannot be combined with symbol or symbols/);
 });
 
 test("buildImplsArgs does not pass unsupported depth flag", () => {
-  assert.deepEqual(buildImplsArgs({ symbol: "Reader", depth: 2 }), ["impls", "Reader"]);
+  assert.deepEqual(buildImplsArgs({ symbol: "Reader", depth: 2 }), ["impls", "--", "Reader"]);
+});
+
+test("positional builders place flags before an operand separator", () => {
+  assert.deepEqual(buildDiffArgs({ symbol: "--help", base: "main", stat: true }), ["diff", "--stat", "--", "--help", "main"]);
+  assert.deepEqual(buildOutlineArgs({ files: ["--json"], names: true }), ["outline", "--names", "--", "--json"]);
+  assert.deepEqual(buildContextArgs({ symbol: "--help", callers: 3 }), ["context", "--callers", "3", "--", "--help"]);
+});
+
+test("model-controlled flag values cannot become Cymbal options", () => {
+  assert.deepEqual(buildSearchArgs({ query: "--help", text: true }), ["search", "--text", "--", "--help"]);
+  assert.deepEqual(buildShowArgs({ target: "x", path: "--json" }), ["show", "--path=--json", "--", "x"]);
+  assert.deepEqual(buildChangedArgs({ base: "--help" }), ["changed", "--base=--help"]);
+  assert.deepEqual(buildImplsArgs({ of: "--help" }), ["impls", "--of=--help"]);
+  assert.deepEqual(buildTraceArgs({ symbol: "x", kinds: "--help" }), ["trace", "--kinds=--help", "--", "x"]);
+});
+
+test("graph requests have deterministic output and reject conflicts", () => {
+  assert.deepEqual(buildImpactArgs({ symbol: "x", graph: true }), ["impact", "--graph", "--graph-format", "json", "--", "x"]);
+  assert.deepEqual(buildImportersArgs({ target: "pkg", graphLimit: 5 }), ["importers", "--graph", "--graph-format", "json", "--graph-limit", "5", "--", "pkg"]);
+  assert.throws(() => buildImpactArgs({ symbol: "x", graph: false, graphLimit: 1 }), /graph: false/);
+  assert.throws(() => buildImpactArgs({ symbol: "x", graphFormat: "dot", format: "json" }), /format: json/);
+});
+
+test("builders enforce combined operand cardinality and impls conflicts", () => {
+  assert.throws(() => buildSearchArgs({ query: "one", queries: Array(32).fill("x") }), /at most 32/);
+  assert.throws(() => buildImplsArgs({ symbol: "Reader", of: "Writer" }), /of cannot be combined/);
+  assert.throws(() => buildOutlineArgs({ files: [] }), /files is required/);
+});
+
+test("numeric schemas enforce exact integer bounds", () => {
+  assert.equal(Check(MapParams, { depth: -1 }), false);
+  assert.equal(Check(MapParams, { depth: 1.5 }), false);
+  assert.equal(Check(OutlineParams, { files: [] }), false);
+  assert.equal(Check(ImportersParams, { target: "x", depth: 4 }), false);
+  assert.equal(Check(ImplsParams, { symbol: "x", limit: 0 }), false);
+  assert.equal(Check(ShowParams, { target: "x", context: 1001 }), false);
 });
 
 test("optional builders map guide-only commands", () => {
-  assert.deepEqual(buildInvestigateArgs({ symbol: "handleAuth", symbols: ["saveAuth"], format: "json" }), ["investigate", "handleAuth", "saveAuth", "--json"]);
-  assert.deepEqual(buildTraceArgs({ symbol: "handleAuth", symbols: ["saveAuth"], depth: 4, kinds: "call,use", limit: 10 }), ["trace", "handleAuth", "saveAuth", "--depth", "4", "--kinds", "call,use", "--limit", "10"]);
-  assert.deepEqual(buildContextArgs({ symbol: "handleAuth", callers: 3 }), ["context", "handleAuth", "--callers", "3"]);
+  assert.deepEqual(buildInvestigateArgs({ symbol: "handleAuth", symbols: ["saveAuth"], format: "json" }), ["investigate", "--json", "--", "handleAuth", "saveAuth"]);
+  assert.deepEqual(buildTraceArgs({ symbol: "handleAuth", symbols: ["saveAuth"], depth: 4, kinds: "call,use", limit: 10 }), ["trace", "--depth", "4", "--kinds", "call,use", "--limit", "10", "--", "handleAuth", "saveAuth"]);
+  assert.deepEqual(buildContextArgs({ symbol: "handleAuth", callers: 3 }), ["context", "--callers", "3", "--", "handleAuth"]);
 });

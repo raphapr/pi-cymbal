@@ -19,9 +19,8 @@ Pi has file and shell tools. `pi-cymbal` adds Cymbal tools so agents can inspect
 
 ## Requirements
 
-- Pi
-- Cymbal `v0.14.0+` for the full tool set, including `cymbal_changed` and the `resolveScope`, `noTests`, `includeUnresolved`, and graph params
-- Older Cymbal still works for everything except `cymbal_changed`. `cymbal_changed` is always registered but availability-gated: it preflights `cymbal changed --help` and fails with a clear error if the `changed` command is unavailable. The new opt-in flags hard-error (`unknown flag`, non-zero exit) on older Cymbal if used, so an agent can retry without them.
+- Pi on Node.js `>=22.19.0`
+- Cymbal `v0.14.0`. CI pins this version for the documented tool and flag surface. Other versions may expose a different command contract.
 - Cymbal binary on `PATH`, or `CYMBAL_BIN` set
 
 ```sh
@@ -43,7 +42,7 @@ pi install git:github.com/raphapr/pi-cymbal
 Local development:
 
 ```sh
-pi --no-extensions -e /home/raphael/repos/github.com/raphapr/pi-cymbal
+pi --no-extensions -e .
 ```
 
 `--no-extensions` avoids conflicts with an already installed `pi-cymbal`.
@@ -151,13 +150,17 @@ Pass `format: "json"` for JSON:
 Use cymbal_search with format json to find registerCymbalHooks.
 ```
 
-Large outputs are truncated. Tool details include a temp-file path with the full output.
+Large outputs use bounded in-memory previews. Tool details include a session-managed temp-file path with the full output. Pi removes managed spill files on session shutdown. Cancellation terminates the Cymbal process tree before returning control.
 
 ## Development
 
 ```sh
 npm install
 npm run validate
+
+# Require the real pinned CLI smoke locally when Cymbal v0.14.0 is installed
+REQUIRE_CYMBAL=1 CYMBAL_BIN="$(command -v cymbal)" \
+  node --import tsx --test test/cli-smoke.test.mjs
 ```
 
 Local Pi smoke:
@@ -173,7 +176,7 @@ pi --no-extensions -e . --no-session -p \
 2. Create a GitHub release with a matching tag, such as `vX.Y.Z`.
 3. GitHub Actions validates and publishes with npm provenance.
 
-Use the manual `Publish to npm` workflow with `dry_run: true` to test packaging.
+Use the manual `Publish to npm` workflow with `dry_run: true` to test packaging. Every live publish must run from the exact `v<package-version>` tag and fails closed if npm version availability cannot be verified.
 
 ## License
 

@@ -4,7 +4,7 @@ import { registerCymbalTool, type ResolvedToolRun } from "./common.js";
 import { resolveSinglePathRun } from "./path.js";
 
 export function resolveIndexRun(params: IndexArgs, cwd: string): ResolvedToolRun<IndexArgs> {
-  return resolveSinglePathRun(params, cwd, params.path, (next, path) => ({ ...next, path }), { omitRepoRoot: true });
+  return resolveSinglePathRun(params, cwd, params.path, (next, path) => ({ ...next, path }), { omitRepoRoot: true, classification: "always" });
 }
 
 export function registerIndexTool(pi: ExtensionAPI): void {

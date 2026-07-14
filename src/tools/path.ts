@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, statSync, type Dirent, type Stats } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative } from "node:path";
+import { existsSync, readdirSync, realpathSync, statSync, type Dirent, type Stats } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { normalizePathArg } from "../cymbal.js";
 
 export interface ResolvedRun<Params> {
@@ -8,10 +8,13 @@ export interface ResolvedRun<Params> {
 }
 
 type StatPath = Pick<Stats, "isDirectory" | "isFile">;
+export type PathClassification = "absolute" | "always" | "show" | "importer";
 
 export interface RepoRootFs {
   stat: (path: string) => StatPath;
   exists: (path: string) => boolean;
+  realpath?: (path: string) => string;
+  platform?: NodeJS.Platform;
 }
 
 export interface PathFs extends RepoRootFs {
@@ -21,6 +24,7 @@ export interface PathFs extends RepoRootFs {
 const defaultFs: PathFs = {
   stat: statSync,
   exists: existsSync,
+  realpath: realpathSync.native,
   readdir: readdirSync,
 };
 
@@ -32,11 +36,33 @@ export function isDirectory(path: string, fs: RepoRootFs): boolean {
   }
 }
 
+function canonicalPath(path: string, fs: RepoRootFs): string {
+  if (!fs.realpath) return path;
+  const unresolved: string[] = [];
+  let current = path;
+  for (;;) {
+    try {
+      const canonical = fs.realpath(current);
+      return unresolved.length ? join(canonical, ...unresolved.reverse()) : canonical;
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return path;
+      unresolved.push(basename(current));
+      current = parent;
+    }
+  }
+}
+
+export function repoRootKey(path: string, fs: RepoRootFs = defaultFs): string {
+  const canonical = canonicalPath(path, fs);
+  return (fs.platform ?? process.platform) === "win32" ? canonical.toLowerCase() : canonical;
+}
+
 export function findRepoRoot(path: string, fs: RepoRootFs = defaultFs): string | undefined {
   let current = isDirectory(path, fs) ? path : dirname(path);
 
   for (;;) {
-    if (fs.exists(join(current, ".git"))) return current;
+    if (fs.exists(join(current, ".git"))) return canonicalPath(current, fs);
     const parent = dirname(current);
     if (parent === current) return undefined;
     current = parent;
@@ -48,33 +74,68 @@ interface TargetParts {
   suffix: string;
 }
 
+const SOURCE_EXTENSION = /\.(?:c|cc|cpp|cs|css|go|h|hpp|html?|java|js|jsx|kt|kts|lua|md|mjs|php|proto|py|rb|rs|scala|sh|sql|swift|toml|ts|tsx|vue|yaml|yml)$/i;
+
+function looksLikePath(path: string): boolean {
+  return isAbsolute(path) || path.startsWith("./") || path.startsWith("../") || path.includes("/") || path.includes("\\") || SOURCE_EXTENSION.test(path);
+}
+
 export function splitPathRangeSuffix(value: string): TargetParts {
-  const match = /^(.*?)(:\d+(?:-\d+)?)$/.exec(value);
-  if (!match) return { path: value, suffix: "" };
-  return { path: match[1], suffix: match[2] };
+  const range = /^(.*?)(:\d+(?:-\d+)?)$/.exec(value);
+  if (range) return { path: range[1], suffix: range[2] };
+
+  const lastColon = value.lastIndexOf(":");
+  if (lastColon > 0 && !(lastColon === 1 && /^[A-Za-z]:[\\/]/.test(value))) {
+    const path = value.slice(0, lastColon);
+    if (looksLikePath(path)) return { path, suffix: value.slice(lastColon) };
+  }
+  return { path: value, suffix: "" };
+}
+
+function isShowPath(value: string): boolean {
+  return looksLikePath(splitPathRangeSuffix(value).path);
+}
+
+export function resolvePathOperand(value: string, cwd: string, classification: PathClassification, fs: RepoRootFs = defaultFs): string {
+  const normalized = classification === "importer" ? value : normalizePathArg(value);
+  const parts = splitPathRangeSuffix(normalized);
+  const explicitImporterPath = isAbsolute(parts.path) || parts.path.startsWith("./") || parts.path.startsWith("../");
+  const importerPath = explicitImporterPath || (!normalized.startsWith("@") && fs.exists(resolve(cwd, parts.path)));
+  const isPath = classification === "always"
+    || (classification === "absolute" && isAbsolute(parts.path))
+    || (classification === "show" && isShowPath(normalized))
+    || (classification === "importer" && importerPath);
+  if (!isPath) return normalized;
+  return `${isAbsolute(parts.path) ? parts.path : resolve(cwd, parts.path)}${parts.suffix}`;
 }
 
 function absolutePathPart(value: string): string | undefined {
-  const normalized = normalizePathArg(value);
-  const parts = splitPathRangeSuffix(normalized);
+  const parts = splitPathRangeSuffix(value);
   return isAbsolute(parts.path) ? parts.path : undefined;
 }
 
-function scopedValue(value: string, repoRoot: string, omitRepoRoot: boolean): string {
-  const normalized = normalizePathArg(value);
-  const parts = splitPathRangeSuffix(normalized);
-  if (!isAbsolute(parts.path)) return normalized;
+function scopedValue(value: string, repoRoot: string, omitRepoRoot: boolean, fs: RepoRootFs): string {
+  const parts = splitPathRangeSuffix(value);
+  if (!isAbsolute(parts.path)) return value;
 
-  const scopedPath = relative(repoRoot, parts.path) || ".";
+  const operationalPath = canonicalPath(parts.path, fs);
+  const scopedPath = relative(repoRoot, operationalPath) || ".";
+  if (scopedPath.startsWith("..") || isAbsolute(scopedPath)) return value;
   const nextPath = omitRepoRoot && scopedPath === "." ? "." : scopedPath;
   return `${nextPath}${parts.suffix}`;
 }
 
+function rootFor(value: string, fs: RepoRootFs): string | undefined {
+  const absolute = absolutePathPart(value);
+  return absolute ? findRepoRoot(absolute, fs) : undefined;
+}
+
 function sameRepoRoot(values: string[], fs: RepoRootFs): string | undefined {
-  const roots = values.map((value) => findRepoRoot(value, fs));
+  const roots = values.map((value) => rootFor(value, fs));
   const root = roots[0];
   if (!root) return undefined;
-  return roots.every((candidate) => candidate === root) ? root : undefined;
+  const key = repoRootKey(root, fs);
+  return roots.every((candidate) => candidate !== undefined && repoRootKey(candidate, fs) === key) ? root : undefined;
 }
 
 function asPathArray(value?: string | string[]): string[] {
@@ -87,24 +148,17 @@ function pathFilterValue(paths: string[]): string | string[] | undefined {
   return paths.length === 1 ? paths[0] : paths;
 }
 
-function absoluteFilterValues(value?: string | string[]): string[] {
-  return asPathArray(value)
-    .map((path) => absolutePathPart(path))
-    .filter((path): path is string => Boolean(path));
+function absoluteFilterValues(value: string | string[] | undefined, cwd: string, fs: RepoRootFs): string[] {
+  return asPathArray(value).map((path) => resolvePathOperand(path, cwd, "always", fs));
 }
 
-function scopedFilterValue(value: string | string[] | undefined, repoRoot: string, omitRepoRoot: boolean): string | string[] | undefined {
-  const scoped = asPathArray(value)
-    .map((path) => {
-      const normalized = normalizePathArg(path);
-      const absolute = absolutePathPart(normalized);
-      if (!absolute) return normalized;
-      const scopedPath = relative(repoRoot, absolute) || ".";
-      if (scopedPath.startsWith("..") || isAbsolute(scopedPath)) return normalized;
-      return omitRepoRoot && scopedPath === "." ? undefined : scopedPath;
+function scopedFilterValue(values: string[], repoRoot: string, omitRepoRoot: boolean, fs: RepoRootFs): string | string[] | undefined {
+  const scoped = values
+    .map((value) => {
+      const next = scopedValue(value, repoRoot, omitRepoRoot, fs);
+      return omitRepoRoot && next === "." ? undefined : next;
     })
     .filter((path): path is string => Boolean(path));
-
   return pathFilterValue(scoped);
 }
 
@@ -122,26 +176,41 @@ export function resolvePathFilterRun<Params>(
   },
 ): ResolvedRun<Params> {
   const fs = options.fs ?? defaultFs;
-  const includeAbsolutes = absoluteFilterValues(options.path);
-  const excludeAbsolutes = absoluteFilterValues(options.exclude);
-  const filterAbsolutes = [...includeAbsolutes, ...excludeAbsolutes];
+  const includeAbsolutes = absoluteFilterValues(options.path, cwd, fs);
+  const excludeAbsolutes = absoluteFilterValues(options.exclude, cwd, fs);
+  const targetRepoRoot = options.targetRepoRoot ? canonicalPath(options.targetRepoRoot, fs) : undefined;
 
-  if (options.targetRepoRoot) {
-    for (const value of filterAbsolutes) {
-      const filterRoot = findRepoRoot(value, fs);
-      if (filterRoot && filterRoot !== options.targetRepoRoot) {
+  if (targetRepoRoot) {
+    const targetKey = repoRootKey(targetRepoRoot, fs);
+    for (const value of [...includeAbsolutes, ...excludeAbsolutes]) {
+      const filterRoot = rootFor(value, fs);
+      if (filterRoot && repoRootKey(filterRoot, fs) !== targetKey) {
         throw new Error(`${options.errorPrefix ?? "Cymbal tool"} path filters resolve to a different repository than the target; split them into separate calls.`);
       }
     }
   }
 
-  const includeRepoRoot = includeAbsolutes.length ? sameRepoRoot(includeAbsolutes, fs) : undefined;
-  const repoRoot = options.targetRepoRoot ?? includeRepoRoot;
-  if (!repoRoot) return { cwd, params };
+  const filterAbsolutes = [...includeAbsolutes, ...excludeAbsolutes];
+  const filterRootKeys = new Set(
+    filterAbsolutes
+      .map((value) => rootFor(value, fs))
+      .filter((root): root is string => Boolean(root))
+      .map((root) => repoRootKey(root, fs)),
+  );
+  if (filterRootKeys.size > 1) {
+    throw new Error(`${options.errorPrefix ?? "Cymbal tool"} path filters resolve to different repositories; split them into separate calls.`);
+  }
 
-  const withPath = options.applyPath(params, scopedFilterValue(options.path, repoRoot, true));
-  const withExclude = options.applyExclude(withPath, scopedFilterValue(options.exclude, repoRoot, false));
-  return { cwd: options.targetRepoRoot ? cwd : repoRoot, params: withExclude };
+  const filterRepoRoot = filterAbsolutes.length ? sameRepoRoot(filterAbsolutes, fs) : undefined;
+  const repoRoot = targetRepoRoot ?? filterRepoRoot;
+  if (!repoRoot) {
+    const withPath = options.applyPath(params, pathFilterValue(includeAbsolutes));
+    return { cwd, params: options.applyExclude(withPath, pathFilterValue(excludeAbsolutes)) };
+  }
+
+  const withPath = options.applyPath(params, scopedFilterValue(includeAbsolutes, repoRoot, true, fs));
+  const withExclude = options.applyExclude(withPath, scopedFilterValue(excludeAbsolutes, repoRoot, false, fs));
+  return { cwd: repoRoot, params: withExclude };
 }
 
 export function resolveSinglePathRun<Params>(
@@ -149,22 +218,21 @@ export function resolveSinglePathRun<Params>(
   cwd: string,
   value: string | undefined,
   apply: (params: Params, value: string | undefined) => Params,
-  options: { omitRepoRoot?: boolean; fs?: RepoRootFs } = {},
+  options: { omitRepoRoot?: boolean; fs?: RepoRootFs; classification?: PathClassification } = {},
 ): ResolvedRun<Params> {
   if (!value) return { cwd, params };
 
   const fs = options.fs ?? defaultFs;
-  const absolute = absolutePathPart(value);
-  if (!absolute) return { cwd, params };
-
-  const normalized = normalizePathArg(value);
+  const resolved = resolvePathOperand(value, cwd, options.classification ?? "absolute", fs);
+  const absolute = absolutePathPart(resolved);
+  if (!absolute) return { cwd, params: apply(params, resolved) };
 
   const repoRoot = findRepoRoot(absolute, fs);
-  if (!repoRoot) return { cwd, params: apply(params, normalized) };
+  if (!repoRoot) return { cwd, params: apply(params, resolved) };
 
   return {
     cwd: repoRoot,
-    params: apply(params, scopedValue(normalized, repoRoot, options.omitRepoRoot ?? false)),
+    params: apply(params, scopedValue(resolved, repoRoot, options.omitRepoRoot ?? false, fs)),
   };
 }
 
@@ -173,22 +241,22 @@ export function resolveMultiPathRun<Params>(
   cwd: string,
   values: string[],
   apply: (params: Params, values: string[]) => Params,
-  options: { omitRepoRoot?: boolean; fs?: RepoRootFs } = {},
+  options: { omitRepoRoot?: boolean; fs?: RepoRootFs; classification?: PathClassification } = {},
 ): ResolvedRun<Params> {
-  const absolutes = values.map(absolutePathPart).filter((value): value is string => Boolean(value));
-  if (!absolutes.length) return { cwd, params };
-
-  const normalized = values.map(normalizePathArg);
-
   const fs = options.fs ?? defaultFs;
-  const repoRoot = sameRepoRoot(absolutes, fs);
-  if (!repoRoot) return { cwd, params: apply(params, normalized) };
+  const resolved = values.map((value) => resolvePathOperand(value, cwd, options.classification ?? "absolute", fs));
+  const rooted = resolved.map((value) => ({ value, root: rootFor(value, fs) })).filter((item) => item.root !== undefined);
+  const rootKeys = new Set(rooted.map((item) => repoRootKey(item.root!, fs)));
+  if (rootKeys.size > 1) throw new Error("Cymbal path operands resolve to different repositories; split them into separate calls.");
+
+  const repoRoot = rooted.length === resolved.length ? sameRepoRoot(resolved, fs) : undefined;
+  if (!repoRoot) return { cwd, params: apply(params, resolved) };
 
   return {
     cwd: repoRoot,
     params: apply(
       params,
-      normalized.map((value) => scopedValue(value, repoRoot, options.omitRepoRoot ?? false)),
+      resolved.map((value) => scopedValue(value, repoRoot, options.omitRepoRoot ?? false, fs)),
     ),
   };
 }

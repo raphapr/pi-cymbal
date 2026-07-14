@@ -48,7 +48,7 @@ test("cymbal_refs scopes absolute include and exclude filters", async () => {
     );
 
     assert.equal(calls[0].cwd, repo);
-    assert.deepEqual(calls[0].args, ["refs", "registerRefsTool", "resolveRefsRun", "--context", "2", "--path", "src", "--exclude", "test"]);
+    assert.deepEqual(calls[0].args, ["refs", "--context", "2", "--path", "src", "--exclude", "test", "--", "registerRefsTool", "resolveRefsRun"]);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

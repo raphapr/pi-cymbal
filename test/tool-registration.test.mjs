@@ -36,6 +36,7 @@ test("extension registers expected tools and command", () => {
   assert.ok(events.includes("before_agent_start"));
   assert.ok(events.includes("tool_call"));
   assert.ok(events.includes("tool_execution_start"));
+  assert.ok(events.includes("session_shutdown"));
 });
 
 test("all cymbal tools define compact renderers", () => {
@@ -52,6 +53,20 @@ test("all cymbal tools define compact renderers", () => {
     assert.equal(typeof tool.renderCall, "function", `${tool.name} missing renderCall`);
     assert.equal(typeof tool.renderResult, "function", `${tool.name} missing renderResult`);
   }
+});
+
+test("registered tool_call starts work synchronously and shutdown awaits it", async () => {
+  const handlers = new Map();
+  const pi = {
+    registerTool() {},
+    registerCommand() {},
+    on(name, handler) { handlers.set(name, handler); },
+    sendMessage() {},
+  };
+  extension(pi);
+  const returned = handlers.get("tool_call")({ toolName: "write", input: {} }, { cwd: process.cwd() });
+  assert.equal(returned, undefined);
+  await handlers.get("session_shutdown")();
 });
 
 test("cymbal tool executions reset global expansion", () => {

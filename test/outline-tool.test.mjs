@@ -28,7 +28,7 @@ test("cymbal_outline runs one Cymbal command per file and combines output with n
           command: `cymbal ${options.args.join(" ")}`,
           args: options.args,
           cwd: options.cwd,
-          stdout: `outline for ${options.args[1]}`,
+          stdout: `outline for ${options.args.at(-1)}`,
           stderr: "",
           code: 0,
         };
@@ -37,8 +37,8 @@ test("cymbal_outline runs one Cymbal command per file and combines output with n
   );
 
   assert.deepEqual(calls, [
-    ["outline", "src/cymbal.ts", "--names", "--signatures"],
-    ["outline", "src/tools/common.ts", "--names", "--signatures"],
+    ["outline", "--names", "--signatures", "--", "src/cymbal.ts"],
+    ["outline", "--names", "--signatures", "--", "src/tools/common.ts"],
   ]);
   assert.match(result.content[0].text, /outline for src\/cymbal\.ts/);
   assert.match(result.content[0].text, /outline for src\/tools\/common\.ts/);
@@ -76,6 +76,33 @@ test("cymbal_outline reports no_repo before empty outline", async () => {
   assert.equal(JSON.parse(result.content[0].text).status, "no_repo");
 });
 
+test("cymbal_outline returns an ordered parseable synthetic JSON batch", async () => {
+  const pi = { registerTool(tool) { this.tool = tool; } };
+  registerOutlineTool(pi);
+  const result = await pi.tool.execute(
+    "call-1",
+    { files: ["src/a.ts", "src/a.ts"], format: "json" },
+    undefined,
+    undefined,
+    {
+      cwd: process.cwd(),
+      runCymbal: async (options) => ({
+        command: `cymbal ${options.args.join(" ")}`,
+        args: options.args,
+        cwd: options.cwd,
+        stdout: JSON.stringify({ file: options.args.at(-1) }),
+        stderr: "",
+        code: 0,
+      }),
+    },
+  );
+  const payload = JSON.parse(result.content[0].text);
+  assert.equal(payload.status, "ok");
+  assert.deepEqual(payload.results.map((item) => item.index), [0, 1]);
+  assert.deepEqual(payload.results.map((item) => item.target), ["src/a.ts", "src/a.ts"]);
+  assert.equal(payload.commands.length, 2);
+});
+
 test("cymbal_outline keeps successful files when another file is not found", async () => {
   const repo = await mkdtemp(join(tmpdir(), "pi-cymbal-outline-"));
   await mkdir(join(repo, ".git"));
@@ -98,7 +125,7 @@ test("cymbal_outline keeps successful files when another file is not found", asy
       {
         cwd: repo,
         runCymbal: async (options) => {
-          if (options.args[1] === "src/queries/access_policy.sql") {
+          if (options.args.at(-1) === "src/queries/access_policy.sql") {
             return {
               command: `cymbal ${options.args.join(" ")}`,
               args: options.args,

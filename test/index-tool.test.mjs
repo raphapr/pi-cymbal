@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { ProcessError } from "../src/cymbal.ts";
 import { registerIndexTool } from "../src/tools/index.ts";
 
 async function makeRepo(name) {
@@ -81,28 +82,22 @@ test("cymbal_index scopes absolute paths to their repo root", async () => {
 
     assert.equal(calls[0].cwd, repo);
     assert.equal(calls[1].cwd, repo);
-    assert.deepEqual(calls[1].args, ["index", "src/index.ts", "--include-large-files"]);
+    assert.deepEqual(calls[1].args, ["index", "--include-large-files", "--", "src/index.ts"]);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
 });
 
-test("cymbal_index reports unsupported command clearly", async () => {
+test("cymbal_index returns a structured unsupported result", async () => {
   const tool = registerTool();
-
-  await assert.rejects(
-    () => tool.execute(
-      "call-1",
-      {},
-      undefined,
-      undefined,
-      {
-        cwd: process.cwd(),
-        runCymbal: async () => { throw new Error("unknown command"); },
-      },
-    ),
-    /does not support `cymbal index`/,
-  );
+  const result = await tool.execute("call-1", {}, undefined, undefined, {
+    cwd: process.cwd(),
+    runCymbal: async (options) => {
+      throw new ProcessError("failed", { command: "cymbal index --help", args: options.args, cwd: options.cwd, stdout: "", stderr: "Error: unknown command 'index'", code: 1 });
+    },
+  });
+  assert.equal(result.details.status, "unsupported");
+  assert.match(result.content[0].text, /does not support `cymbal index`/);
 });
 
 test("cymbal_index advertises stale-index-only guidance", () => {

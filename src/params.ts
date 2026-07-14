@@ -6,158 +6,150 @@ export const FormatParam = Type.Optional(StringEnum(["agent", "json"] as const, 
 export const GraphFormatParam = Type.Optional(StringEnum(["mermaid", "dot", "json"] as const));
 export const ResolveScopeParam = Type.Optional(StringEnum(["same", "family", "all"] as const, { description: "Cross-language resolution scope. Defaults to family." }));
 
+const BatchStrings = (description: string, minItems = 1) => Type.Array(Type.String(), { minItems, maxItems: 32, description });
+const PathValues = (description: string) => Type.Union([Type.String(), BatchStrings(description)], { description });
+const ResultLimit = (description: string) => Type.Integer({ minimum: 1, maximum: 10_000, description });
+const ContextLines = (description: string) => Type.Integer({ minimum: 0, maximum: 1_000, description });
+const GraphLimit = Type.Optional(Type.Integer({ minimum: 0, maximum: 10_000, description: "Graph limit." }));
+
 export const MapParams = Type.Object({
   path: Type.Optional(Type.String({ description: "Directory scope. Defaults to ." })),
-  depth: Type.Optional(Type.Number({ description: "Tree depth passed to --depth." })),
+  depth: Type.Optional(Type.Integer({ minimum: 0, maximum: 100, description: "Tree depth passed to --depth." })),
   stats: Type.Optional(Type.Boolean({ description: "Include repository stats. Defaults to true." })),
   repos: Type.Optional(Type.Boolean({ description: "List indexed repositories instead of tree." })),
   format: FormatParam,
 });
 
-export const StructureParams = Type.Object({
-  limit: Type.Optional(Type.Number({ description: "Maximum items per section." })),
-  format: FormatParam,
-});
-
+export const StructureParams = Type.Object({ limit: Type.Optional(ResultLimit("Maximum items per section.")), format: FormatParam });
 export const DiffParams = Type.Object({
   symbol: Type.String({ description: "Symbol to diff." }),
   base: Type.Optional(Type.String({ description: "Git base revision. Defaults to HEAD." })),
   stat: Type.Optional(Type.Boolean({ description: "Show diffstat instead of full diff." })),
   format: FormatParam,
 });
-
 export const IndexParams = Type.Object({
   path: Type.Optional(Type.String({ description: "Directory to index. Defaults to the current directory." })),
   force: Type.Optional(Type.Boolean({ description: "Force re-index all files." })),
-  workers: Type.Optional(Type.Number({ description: "Number of parallel workers." })),
-  exclude: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())], { description: "Exclude files matching this glob during indexing." })),
+  workers: Type.Optional(Type.Integer({ minimum: 0, maximum: 256, description: "Number of parallel workers." })),
+  exclude: Type.Optional(PathValues("Exclude files matching this glob during indexing.")),
   includeGenerated: Type.Optional(Type.Boolean({ description: "Index generated files that are skipped by default." })),
   includeLargeFiles: Type.Optional(Type.Boolean({ description: "Index large source files that are skipped by default." })),
   format: FormatParam,
 });
-
 export const SearchParams = Type.Object({
   query: Type.Optional(Type.String({ description: "Symbol query, or text query when text is true." })),
-  queries: Type.Optional(Type.Array(Type.String(), { description: "Additional symbol queries." })),
+  queries: Type.Optional(BatchStrings("Additional symbol queries.")),
   text: Type.Optional(Type.Boolean({ description: "Use Cymbal full-text search." })),
   exact: Type.Optional(Type.Boolean({ description: "Exact symbol match." })),
   ignoreCase: Type.Optional(Type.Boolean({ description: "Case-insensitive exact symbol match. Implies exact matching and is not supported with text search." })),
   kind: Type.Optional(Type.String({ description: "Filter by symbol kind." })),
   lang: Type.Optional(Type.String({ description: "Filter by language." })),
-  limit: Type.Optional(Type.Number({ description: "Maximum results." })),
-  path: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())], { description: "Include path filter." })),
-  exclude: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())], { description: "Exclude path filter." })),
+  limit: Type.Optional(ResultLimit("Maximum results.")),
+  path: Type.Optional(PathValues("Include path filter.")),
+  exclude: Type.Optional(PathValues("Exclude path filter.")),
   format: FormatParam,
 });
-
 export const OutlineParams = Type.Object({
-  files: Type.Array(Type.String(), { description: "Files to outline." }),
+  files: BatchStrings("Files to outline."),
   names: Type.Optional(Type.Boolean({ description: "Emit one symbol name per line." })),
   signatures: Type.Optional(Type.Boolean({ description: "Include signatures." })),
   format: FormatParam,
 });
-
 export const ShowParams = Type.Object({
   target: Type.Optional(Type.String({ description: "Symbol, file path, or file range." })),
-  targets: Type.Optional(Type.Array(Type.String(), { minItems: 1, description: "Symbols, file paths, or file ranges to show." })),
+  targets: Type.Optional(BatchStrings("Symbols, file paths, or file ranges to show.")),
   all: Type.Optional(Type.Boolean({ description: "Show all matching symbol definitions." })),
-  context: Type.Optional(Type.Number({ description: "Context lines." })),
-  path: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())], { description: "Include path filter." })),
-  exclude: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())], { description: "Exclude path filter." })),
+  context: Type.Optional(ContextLines("Context lines.")),
+  path: Type.Optional(PathValues("Include path filter.")),
+  exclude: Type.Optional(PathValues("Exclude path filter.")),
   format: FormatParam,
 });
-
 export const RefsParams = Type.Object({
   symbol: Type.Optional(Type.String({ description: "Target symbol." })),
-  symbols: Type.Optional(Type.Array(Type.String(), { description: "Additional target symbols." })),
-  limit: Type.Optional(Type.Number({ description: "Maximum results." })),
+  symbols: Type.Optional(BatchStrings("Additional target symbols.")),
+  limit: Type.Optional(ResultLimit("Maximum results.")),
   importers: Type.Optional(Type.Boolean({ description: "Include importers." })),
   impact: Type.Optional(Type.Boolean({ description: "Impact mode." })),
-  depth: Type.Optional(Type.Number({ description: "Depth for importers or impact mode." })),
-  context: Type.Optional(Type.Number({ description: "Lines of context around each call site." })),
+  depth: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: "Depth for importers or impact mode." })),
+  context: Type.Optional(ContextLines("Lines of context around each call site.")),
   file: Type.Optional(Type.String({ description: "Restrict refs to files that import or include the given path fragment." })),
-  path: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())], { description: "Include path filter." })),
-  exclude: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())], { description: "Exclude path filter." })),
+  path: Type.Optional(PathValues("Include path filter.")),
+  exclude: Type.Optional(PathValues("Exclude path filter.")),
   format: FormatParam,
 });
-
 export const ImpactParams = Type.Object({
   symbol: Type.Optional(Type.String({ description: "Target symbol." })),
-  symbols: Type.Optional(Type.Array(Type.String(), { description: "Additional target symbols." })),
-  context: Type.Optional(Type.Number({ description: "Lines of context around each call site." })),
-  depth: Type.Optional(Type.Number({ description: "Impact depth." })),
-  limit: Type.Optional(Type.Number({ description: "Maximum results." })),
+  symbols: Type.Optional(BatchStrings("Additional target symbols.")),
+  context: Type.Optional(ContextLines("Lines of context around each call site.")),
+  depth: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: "Impact depth." })),
+  limit: Type.Optional(ResultLimit("Maximum results.")),
   noTests: Type.Optional(Type.Boolean({ description: "Exclude callers in test files from the impact set." })),
   resolveScope: ResolveScopeParam,
   graph: Type.Optional(Type.Boolean({ description: "Emit graph output." })),
   graphFormat: GraphFormatParam,
-  graphLimit: Type.Optional(Type.Number({ description: "Graph limit." })),
+  graphLimit: GraphLimit,
   includeUnresolved: Type.Optional(Type.Boolean({ description: "Include unresolved graph nodes." })),
   format: FormatParam,
 });
-
 export const ImportersParams = Type.Object({
   target: Type.String({ description: "File or package target." }),
-  depth: Type.Optional(Type.Number({ description: "Importer depth." })),
+  depth: Type.Optional(Type.Integer({ minimum: 1, maximum: 3, description: "Importer depth." })),
+  limit: Type.Optional(ResultLimit("Maximum results.")),
   graph: Type.Optional(Type.Boolean({ description: "Emit graph output." })),
   graphFormat: GraphFormatParam,
-  graphLimit: Type.Optional(Type.Number({ description: "Graph limit." })),
+  graphLimit: GraphLimit,
   includeUnresolved: Type.Optional(Type.Boolean({ description: "Include unresolved graph nodes." })),
   format: FormatParam,
 });
-
 export const ImplsParams = Type.Object({
   symbol: Type.Optional(Type.String({ description: "Symbol to query." })),
-  symbols: Type.Optional(Type.Array(Type.String(), { description: "Additional symbols to query." })),
+  symbols: Type.Optional(BatchStrings("Additional symbols to query.")),
   of: Type.Optional(Type.String({ description: "Find implementations of this symbol." })),
   lang: Type.Optional(Type.String({ description: "Filter by language." })),
-  path: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())], { description: "Include path filter." })),
-  exclude: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())], { description: "Exclude path filter." })),
+  path: Type.Optional(PathValues("Include path filter.")),
+  exclude: Type.Optional(PathValues("Exclude path filter.")),
+  limit: Type.Optional(ResultLimit("Maximum results.")),
   graph: Type.Optional(Type.Boolean({ description: "Emit graph output." })),
   graphFormat: GraphFormatParam,
-  graphLimit: Type.Optional(Type.Number({ description: "Graph limit." })),
+  graphLimit: GraphLimit,
   includeUnresolved: Type.Optional(Type.Boolean({ description: "Include unresolved graph nodes." })),
   resolved: Type.Optional(Type.Boolean({ description: "Only show targets whose declaration is in the index." })),
   unresolved: Type.Optional(Type.Boolean({ description: "Only show external or unresolved targets." })),
   format: FormatParam,
 });
-
 export const InvestigateParams = Type.Object({
   symbol: Type.Optional(Type.String({ description: "Target symbol." })),
-  symbols: Type.Optional(Type.Array(Type.String(), { description: "Additional target symbols." })),
+  symbols: Type.Optional(BatchStrings("Additional target symbols.")),
   resolveScope: ResolveScopeParam,
   format: FormatParam,
 });
-
 export const TraceParams = Type.Object({
   symbol: Type.Optional(Type.String({ description: "Target symbol." })),
-  symbols: Type.Optional(Type.Array(Type.String(), { description: "Additional target symbols." })),
-  depth: Type.Optional(Type.Number({ description: "Trace depth." })),
+  symbols: Type.Optional(BatchStrings("Additional target symbols.")),
+  depth: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: "Trace depth." })),
   kinds: Type.Optional(Type.String({ description: "Comma-separated ref kinds to follow." })),
-  limit: Type.Optional(Type.Number({ description: "Maximum results per symbol." })),
+  limit: Type.Optional(ResultLimit("Maximum results per symbol.")),
   includeUnresolved: Type.Optional(Type.Boolean({ description: "Include unresolved targets in text, JSON, and graph output." })),
   resolveScope: ResolveScopeParam,
   graph: Type.Optional(Type.Boolean({ description: "Emit graph output." })),
   graphFormat: GraphFormatParam,
-  graphLimit: Type.Optional(Type.Number({ description: "Graph limit." })),
+  graphLimit: GraphLimit,
   format: FormatParam,
 });
-
 export const ChangedParams = Type.Object({
   staged: Type.Optional(Type.Boolean({ description: "Use staged changes instead of the working tree. Cannot be combined with base." })),
   base: Type.Optional(Type.String({ description: "Diff against this git base ref. Cannot be combined with staged." })),
-  depth: Type.Optional(Type.Number({ description: "Impact depth." })),
-  limit: Type.Optional(Type.Number({ description: "Maximum results." })),
-  maxSymbols: Type.Optional(Type.Number({ description: "Maximum changed symbols to analyze." })),
-  maxImpact: Type.Optional(Type.Number({ description: "Maximum impacted symbols to report." })),
+  depth: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: "Impact depth." })),
+  limit: Type.Optional(ResultLimit("Maximum results.")),
+  maxSymbols: Type.Optional(Type.Integer({ minimum: 0, maximum: 10_000, description: "Maximum changed symbols to analyze." })),
+  maxImpact: Type.Optional(Type.Integer({ minimum: 0, maximum: 100_000, description: "Maximum impacted symbols to report." })),
   noTests: Type.Optional(Type.Boolean({ description: "Exclude callers in test files from the impact set." })),
   resolveScope: ResolveScopeParam,
   format: FormatParam,
 });
-
 export const ContextParams = Type.Object({
   symbol: Type.String({ description: "Target symbol." }),
-  callers: Type.Optional(Type.Number({ description: "Maximum callers to show." })),
+  callers: Type.Optional(ResultLimit("Maximum callers to show.")),
   format: FormatParam,
 });
 
@@ -254,6 +246,7 @@ export interface ImpactArgs {
 export interface ImportersArgs {
   target: string;
   depth?: number;
+  limit?: number;
   graph?: boolean;
   graphFormat?: "mermaid" | "dot" | "json";
   graphLimit?: number;
@@ -268,6 +261,7 @@ export interface ImplsArgs {
   lang?: string;
   path?: string | string[];
   exclude?: string | string[];
+  limit?: number;
   graph?: boolean;
   graphFormat?: "mermaid" | "dot" | "json";
   graphLimit?: number;
@@ -326,26 +320,69 @@ function asArray(value?: string | string[]): string[] {
   return Array.isArray(value) ? value : [value];
 }
 
-function pushNumber(args: string[], flag: string, value?: number): void {
+function assertInteger(name: string, value: number | undefined, minimum: number, maximum: number): void {
+  if (value !== undefined && (!Number.isInteger(value) || value < minimum || value > maximum)) {
+    throw new RangeError(`${name} must be an integer between ${minimum} and ${maximum}`);
+  }
+}
+
+function pushNumber(args: string[], flag: string, value: number | undefined, minimum: number, maximum: number): void {
+  assertInteger(flag, value, minimum, maximum);
   if (value !== undefined) args.push(flag, String(value));
 }
 
-function pushGraphArgs(args: string[], options: { graph?: boolean; graphFormat?: string; graphLimit?: number }): void {
-  if (options.graph) args.push("--graph");
-  if (options.graphFormat) args.push("--graph-format", options.graphFormat);
-  pushNumber(args, "--graph-limit", options.graphLimit);
+interface GraphOptions {
+  graph?: boolean;
+  graphFormat?: "mermaid" | "dot" | "json";
+  graphLimit?: number;
+  format?: OutputFormat;
+}
+
+function graphRequested(options: GraphOptions): boolean {
+  return options.graph === true || options.graphFormat !== undefined || options.graphLimit !== undefined;
+}
+
+export function effectiveOutputFormat(options: GraphOptions): OutputFormat {
+  const requested = graphRequested(options);
+  if (options.graph === false && (options.graphFormat !== undefined || options.graphLimit !== undefined)) {
+    throw new Error("graph: false cannot be combined with graphFormat or graphLimit");
+  }
+  if ((options.graphFormat === "mermaid" || options.graphFormat === "dot") && options.format === "json") {
+    throw new Error("format: json cannot be combined with Mermaid or DOT graph output");
+  }
+  if (!requested) return options.format ?? "agent";
+  return options.graphFormat === "mermaid" || options.graphFormat === "dot" ? "agent" : "json";
+}
+
+function pushGraphArgs(args: string[], options: GraphOptions): void {
+  effectiveOutputFormat(options);
+  if (!graphRequested(options)) return;
+  args.push("--graph", "--graph-format", options.graphFormat ?? "json");
+  pushNumber(args, "--graph-limit", options.graphLimit, 0, 10_000);
 }
 
 function pushResolveScope(args: string[], scope?: "same" | "family" | "all"): void {
   if (scope) args.push("--resolve-scope", scope);
 }
 
+function pushString(args: string[], flag: string, value: string): void {
+  if (value.startsWith("-")) args.push(`${flag}=${value}`);
+  else args.push(flag, value);
+}
+
 function pushRepeatedPaths(args: string[], flag: string, values?: string | string[]): void {
-  for (const value of asArray(values).map(normalizePathArg)) args.push(flag, value);
+  for (const value of asArray(values).map(normalizePathArg)) pushString(args, flag, value);
+}
+
+function boundedOperands(label: string, values: Array<string | undefined>, required = true): string[] {
+  const operands = values.filter((candidate): candidate is string => Boolean(candidate));
+  if (required && operands.length === 0) throw new Error(`${label} is required`);
+  if (operands.length > 32) throw new RangeError(`${label} accepts at most 32 operands`);
+  return operands;
 }
 
 function collectSymbols(symbol?: string, symbols?: string[]): string[] {
-  return [symbol, ...(symbols ?? [])].filter((candidate): candidate is string => Boolean(candidate));
+  return boundedOperands("symbol or symbols", [symbol, ...(symbols ?? [])]);
 }
 
 function escapeSymbolSearchQuery(query: string): string {
@@ -363,180 +400,190 @@ export function buildMapArgs(params: MapArgs): string[] {
     args.push("--repos");
     return addJson(args, params.format);
   }
-  args.push(normalizePathArg(params.path ?? "."));
   if (params.stats ?? true) args.push("--stats");
-  pushNumber(args, "--depth", params.depth);
-  return addJson(args, params.format);
+  pushNumber(args, "--depth", params.depth, 0, 100);
+  addJson(args, params.format);
+  args.push("--", normalizePathArg(params.path ?? "."));
+  return args;
 }
 
 export function buildStructureArgs(params: StructureArgs): string[] {
   const args = ["structure"];
-  pushNumber(args, "--limit", params.limit);
+  pushNumber(args, "--limit", params.limit, 1, 10_000);
   return addJson(args, params.format);
 }
 
 export function buildDiffArgs(params: DiffArgs): string[] {
-  const args = ["diff", params.symbol];
-  if (params.base) args.push(params.base);
+  const args = ["diff"];
   if (params.stat) args.push("--stat");
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  args.push("--", params.symbol);
+  if (params.base) args.push(params.base);
+  return args;
 }
 
 export function buildIndexArgs(params: IndexArgs): string[] {
   const args = ["index"];
-  if (params.path) args.push(normalizePathArg(params.path));
   if (params.force) args.push("--force");
-  pushNumber(args, "--workers", params.workers);
+  pushNumber(args, "--workers", params.workers, 0, 256);
   pushRepeatedPaths(args, "--exclude", params.exclude);
   if (params.includeGenerated) args.push("--include-generated");
   if (params.includeLargeFiles) args.push("--include-large-files");
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  if (params.path) args.push("--", normalizePathArg(params.path));
+  return args;
 }
 
 export function buildSearchArgs(params: SearchArgs): string[] {
   if (params.ignoreCase && params.text) throw new Error("ignoreCase cannot be combined with text search");
   if (params.ignoreCase && params.exact === false) throw new Error("ignoreCase requires exact matching");
-
+  const queries = boundedOperands(params.text ? "text mode query or queries" : "query or queries", [params.query, ...(params.queries ?? [])]);
   const args = ["search"];
   const exactSymbolSearch = params.exact || params.ignoreCase;
-
-  if (params.text) {
-    const queries = [params.query, ...(params.queries ?? [])].filter((query): query is string => Boolean(query));
-    if (!queries.length) throw new Error("text mode requires query or queries");
-    args.push("--text", queries.join(" "));
-  } else {
-    const queries = [params.query, ...(params.queries ?? [])].filter((query): query is string => Boolean(query));
-    if (!queries.length) throw new Error("query or queries is required");
-    args.push(...(exactSymbolSearch ? queries : queries.map(escapeSymbolSearchQuery)));
-  }
-
+  if (params.text) args.push("--text");
   if (exactSymbolSearch) args.push("--exact");
   if (params.ignoreCase) args.push("--ignore-case");
-  if (params.kind) args.push("--kind", params.kind);
-  if (params.lang) args.push("--lang", params.lang);
-  pushNumber(args, "--limit", params.limit);
+  if (params.kind) pushString(args, "--kind", params.kind);
+  if (params.lang) pushString(args, "--lang", params.lang);
+  pushNumber(args, "--limit", params.limit, 1, 10_000);
   pushRepeatedPaths(args, "--path", params.path);
   pushRepeatedPaths(args, "--exclude", params.exclude);
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  if (params.text) args.push("--", queries.join(" "));
+  else args.push("--", ...(exactSymbolSearch ? queries : queries.map(escapeSymbolSearchQuery)));
+  return args;
 }
 
 export function buildOutlineArgs(params: OutlineArgs): string[] {
-  const args = ["outline", ...params.files.map(normalizePathArg)];
+  const files = boundedOperands("files", params.files);
+  const args = ["outline"];
   if (params.names) args.push("--names");
   if (params.signatures) args.push("--signatures");
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  args.push("--", ...files.map(normalizePathArg));
+  return args;
 }
 
 function showTargets(params: ShowArgs): string[] {
   const targets = params.targets ?? [];
   if (params.target && targets.length) throw new Error("target and targets cannot be combined");
-  if (params.target) return [params.target];
-  if (targets.length) return targets;
-  throw new Error("target or targets is required");
+  return boundedOperands("target or targets", [params.target, ...targets]);
 }
 
 export function buildShowArgs(params: ShowArgs): string[] {
-  const args = ["show", ...showTargets(params).map(normalizePathArg)];
+  const targets = showTargets(params);
+  const args = ["show"];
   if (params.all) args.push("--all");
-  pushNumber(args, "--context", params.context);
+  pushNumber(args, "--context", params.context, 0, 1_000);
   pushRepeatedPaths(args, "--path", params.path);
   pushRepeatedPaths(args, "--exclude", params.exclude);
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  args.push("--", ...targets.map(normalizePathArg));
+  return args;
 }
 
 export function buildRefsArgs(params: RefsArgs): string[] {
   const symbols = collectSymbols(params.symbol, params.symbols);
-  if (!symbols.length) throw new Error("symbol or symbols is required");
-  const args = ["refs", ...symbols];
+  const args = ["refs"];
   if (params.importers) args.push("--importers");
   if (params.impact) args.push("--impact");
-  if (params.importers || params.impact) pushNumber(args, "--depth", params.depth);
-  pushNumber(args, "--context", params.context);
-  if (params.file) args.push("--file", normalizePathArg(params.file));
-  pushNumber(args, "--limit", params.limit);
+  if (params.importers || params.impact) pushNumber(args, "--depth", params.depth, 1, params.importers ? 3 : 5);
+  pushNumber(args, "--context", params.context, 0, 1_000);
+  if (params.file) pushString(args, "--file", normalizePathArg(params.file));
+  pushNumber(args, "--limit", params.limit, 1, 10_000);
   pushRepeatedPaths(args, "--path", params.path);
   pushRepeatedPaths(args, "--exclude", params.exclude);
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  args.push("--", ...symbols);
+  return args;
 }
 
 export function buildImpactArgs(params: ImpactArgs): string[] {
   const symbols = collectSymbols(params.symbol, params.symbols);
-  if (!symbols.length) throw new Error("symbol or symbols is required");
-  const args = ["impact", ...symbols];
-  pushNumber(args, "--context", params.context);
-  pushNumber(args, "--depth", params.depth);
-  pushNumber(args, "--limit", params.limit);
+  const args = ["impact"];
+  pushNumber(args, "--context", params.context, 0, 1_000);
+  pushNumber(args, "--depth", params.depth, 1, 5);
+  pushNumber(args, "--limit", params.limit, 1, 10_000);
   if (params.noTests) args.push("--no-tests");
   pushResolveScope(args, params.resolveScope);
   pushGraphArgs(args, params);
   if (params.includeUnresolved) args.push("--include-unresolved");
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  args.push("--", ...symbols);
+  return args;
 }
 
 export function buildImportersArgs(params: ImportersArgs): string[] {
-  const args = ["importers", params.target];
-  pushNumber(args, "--depth", params.depth);
+  const args = ["importers"];
+  pushNumber(args, "--depth", params.depth, 1, 3);
+  pushNumber(args, "--limit", params.limit, 1, 10_000);
   pushGraphArgs(args, params);
   if (params.includeUnresolved) args.push("--include-unresolved");
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  args.push("--", params.target);
+  return args;
 }
 
 export function buildImplsArgs(params: ImplsArgs): string[] {
   if (params.resolved && params.unresolved) throw new Error("resolved cannot be combined with unresolved");
-  if (params.of && params.symbols?.length) throw new Error("of cannot be combined with symbols");
-
-  const symbols = collectSymbols(params.symbol, params.symbols);
-  if (!symbols.length && !params.of) throw new Error("symbol or of is required");
+  if (params.of && (params.symbol || params.symbols?.length)) throw new Error("of cannot be combined with symbol or symbols");
+  const symbols = boundedOperands("symbol or of", [params.symbol, ...(params.symbols ?? [])], Boolean(!params.of));
   const args = ["impls"];
-  if (params.of) args.push("--of", params.of);
-  args.push(...symbols);
-  if (params.lang) args.push("--lang", params.lang);
+  if (params.of) pushString(args, "--of", params.of);
+  if (params.lang) pushString(args, "--lang", params.lang);
   pushRepeatedPaths(args, "--path", params.path);
   pushRepeatedPaths(args, "--exclude", params.exclude);
+  pushNumber(args, "--limit", params.limit, 1, 10_000);
   pushGraphArgs(args, params);
   if (params.includeUnresolved) args.push("--include-unresolved");
   if (params.resolved) args.push("--resolved");
   if (params.unresolved) args.push("--unresolved");
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  if (symbols.length) args.push("--", ...symbols);
+  return args;
 }
 
 export function buildInvestigateArgs(params: InvestigateArgs): string[] {
   const symbols = collectSymbols(params.symbol, params.symbols);
-  if (!symbols.length) throw new Error("symbol or symbols is required");
-  const args = ["investigate", ...symbols];
+  const args = ["investigate"];
   pushResolveScope(args, params.resolveScope);
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  args.push("--", ...symbols);
+  return args;
 }
 
 export function buildTraceArgs(params: TraceArgs): string[] {
   const symbols = collectSymbols(params.symbol, params.symbols);
-  if (!symbols.length) throw new Error("symbol or symbols is required");
-  const args = ["trace", ...symbols];
-  pushNumber(args, "--depth", params.depth);
-  if (params.kinds) args.push("--kinds", params.kinds);
-  pushNumber(args, "--limit", params.limit);
+  const args = ["trace"];
+  pushNumber(args, "--depth", params.depth, 1, 5);
+  if (params.kinds) pushString(args, "--kinds", params.kinds);
+  pushNumber(args, "--limit", params.limit, 1, 10_000);
   if (params.includeUnresolved) args.push("--include-unresolved");
   pushResolveScope(args, params.resolveScope);
   pushGraphArgs(args, params);
-  return addJson(args, params.format);
+  addJson(args, params.format);
+  args.push("--", ...symbols);
+  return args;
 }
 
 export function buildChangedArgs(params: ChangedArgs): string[] {
   if (params.staged && params.base) throw new Error("staged cannot be combined with base");
   const args = ["changed"];
   if (params.staged) args.push("--staged");
-  if (params.base) args.push("--base", params.base);
-  pushNumber(args, "--depth", params.depth);
-  pushNumber(args, "--limit", params.limit);
-  pushNumber(args, "--max-symbols", params.maxSymbols);
-  pushNumber(args, "--max-impact", params.maxImpact);
+  if (params.base) pushString(args, "--base", params.base);
+  pushNumber(args, "--depth", params.depth, 1, 5);
+  pushNumber(args, "--limit", params.limit, 1, 10_000);
+  pushNumber(args, "--max-symbols", params.maxSymbols, 0, 10_000);
+  pushNumber(args, "--max-impact", params.maxImpact, 0, 100_000);
   if (params.noTests) args.push("--no-tests");
   pushResolveScope(args, params.resolveScope);
   return addJson(args, params.format);
 }
 
 export function buildContextArgs(params: ContextArgs): string[] {
-  const args = ["context", params.symbol];
-  pushNumber(args, "--callers", params.callers);
-  return addJson(args, params.format);
+  const args = ["context"];
+  pushNumber(args, "--callers", params.callers, 1, 10_000);
+  addJson(args, params.format);
+  args.push("--", params.symbol);
+  return args;
 }

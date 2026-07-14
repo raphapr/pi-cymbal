@@ -47,7 +47,7 @@ test("cymbal_map runs against the repo selected by an absolute path", async () =
 
     assert.equal(calls.length, 1);
     assert.equal(calls[0].cwd, targetRepo);
-    assert.deepEqual(calls[0].args, ["ls", ".", "--stats"]);
+    assert.deepEqual(calls[0].args, ["ls", "--stats", "--", "."]);
     assert.equal(result.content[0].text, "target repo map");
   } finally {
     await rm(currentRepo, { recursive: true, force: true });
@@ -91,7 +91,7 @@ test("cymbal_map scopes absolute subdirectories to their repo root", async () =>
     );
 
     assert.equal(calls[0].cwd, targetRepo);
-    assert.deepEqual(calls[0].args, ["ls", "src/tools", "--depth", "2"]);
+    assert.deepEqual(calls[0].args, ["ls", "--depth", "2", "--", "src/tools"]);
   } finally {
     await rm(targetRepo, { recursive: true, force: true });
   }

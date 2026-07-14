@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ProcessError } from "../src/cymbal.ts";
 import { registerStructureTool } from "../src/tools/structure.ts";
 
 function registerTool() {
@@ -44,20 +45,14 @@ test("cymbal_structure checks availability and runs structure", async () => {
   assert.equal(result.content[0].text, "structure output");
 });
 
-test("cymbal_structure reports unsupported command clearly", async () => {
+test("cymbal_structure returns a structured unsupported result", async () => {
   const tool = registerTool();
-
-  await assert.rejects(
-    () => tool.execute(
-      "call-1",
-      {},
-      undefined,
-      undefined,
-      {
-        cwd: process.cwd(),
-        runCymbal: async () => { throw new Error("unknown command"); },
-      },
-    ),
-    /does not support `cymbal structure`/,
-  );
+  const result = await tool.execute("call-1", {}, undefined, undefined, {
+    cwd: process.cwd(),
+    runCymbal: async (options) => {
+      throw new ProcessError("failed", { command: "cymbal structure --help", args: options.args, cwd: options.cwd, stdout: "", stderr: "Error: unknown command 'structure'", code: 1 });
+    },
+  });
+  assert.equal(result.details.status, "unsupported");
+  assert.match(result.content[0].text, /does not support `cymbal structure`/);
 });

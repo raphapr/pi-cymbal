@@ -31,14 +31,10 @@ jobs:
           git checkout --force FETCH_HEAD
 
       - name: Setup Node
-        shell: bash
-        run: |
-          curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-          sudo apt-get install -y nodejs
-          sudo npm install -g npm@^11.10.0
-          npm config set registry https://registry.npmjs.org
-          node --version
-          npm --version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: npm ci
@@ -46,16 +42,10 @@ jobs:
       - name: Validate package
         run: npm run validate
 
-      - name: Check release tag matches package version
-        if: github.event_name == 'release'
-        shell: bash
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          tag="${GITHUB_REF_NAME#v}"
-          if [ "$tag" != "$version" ]; then
-            echo "Release tag v$tag does not match package.json version $version" >&2
-            exit 1
-          fi
+      - name: Validate publish context
+        env:
+          INPUT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: node scripts/check-publish.mjs
 
       - name: Publish dry run
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run

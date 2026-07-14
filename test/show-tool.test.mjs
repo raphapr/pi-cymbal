@@ -57,7 +57,7 @@ test("cymbal_show supports multiple targets with partial not-found recovery", as
         cwd: repo,
         runCymbal: async (options) => {
           calls.push(options.args);
-          if (options.args[1] === "src/queries/access_policy.sql") throw missingTargetError(options.args[1], options.cwd);
+          if (options.args.at(-1) === "src/queries/access_policy.sql") throw missingTargetError(options.args.at(-1), options.cwd);
           return {
             command: `cymbal ${options.args.join(" ")}`,
             args: options.args,
@@ -121,7 +121,7 @@ test("cymbal_show returns valid JSON for multiple targets", async () => {
     },
   );
 
-  assert.deepEqual(calls, [["show", "src/params.ts", "definitely_missing_file_zzzz.ts", "--json"]]);
+  assert.deepEqual(calls, [["show", "--json", "--", "src/params.ts", "definitely_missing_file_zzzz.ts"]]);
   const results = JSON.parse(result.content[0].text).results;
   assert.ok(results["src/params.ts"]);
   assert.ok(results["definitely_missing_file_zzzz.ts"]);
@@ -228,7 +228,7 @@ test("cymbal_show allows same-repo absolute and relative JSON targets", async ()
     );
 
     assert.equal(calls[0].cwd, repo);
-    assert.deepEqual(calls[0].args, ["show", "src/index.ts:1-1", "README.md:1-1", "--json"]);
+    assert.deepEqual(calls[0].args, ["show", "--json", "--", "src/index.ts:1-1", "README.md:1-1"]);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
@@ -262,7 +262,7 @@ test("cymbal_show rejects mixed-scope JSON targets", async () => {
             },
           },
         ),
-      /mixed-scope JSON targets/,
+      /cross-repo or no-repo JSON targets/,
     );
   } finally {
     await rm(repo, { recursive: true, force: true });
@@ -477,7 +477,7 @@ test("cymbal_show scopes absolute include and exclude filters", async () => {
     );
 
     assert.equal(calls[0].cwd, repo);
-    assert.deepEqual(calls[0].args, ["show", "registerShowTool", "--all", "--path", "src", "--exclude", "test"]);
+    assert.deepEqual(calls[0].args, ["show", "--all", "--path", "src", "--exclude", "test", "--", "registerShowTool"]);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
@@ -558,7 +558,7 @@ test("cymbal_show scopes an absolute file target to its repository", async () =>
     );
 
     assert.equal(calls[0].cwd, repo);
-    assert.deepEqual(calls[0].args, ["show", "src/index.ts:1-1"]);
+    assert.deepEqual(calls[0].args, ["show", "--", "src/index.ts:1-1"]);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

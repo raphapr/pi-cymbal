@@ -1,17 +1,47 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CymbalError, ProcessError } from "../src/cymbal.ts";
-import { ensureCommandAvailable, registerOptionalTools } from "../src/tools/optional.ts";
+import { clearAvailabilityCache, ensureCommandAvailable, registerOptionalTools } from "../src/tools/optional.ts";
 
 test("ensureCommandAvailable returns when help succeeds", async () => {
   await ensureCommandAvailable("trace", async () => ({ command: "cymbal trace --help", args: ["trace", "--help"], cwd: ".", stdout: "usage", stderr: "", code: 0 }), ".");
 });
 
-test("ensureCommandAvailable throws clear unsupported error", async () => {
+test("ensureCommandAvailable throws clear unsupported error only for known diagnostics", async () => {
+  const unsupported = new ProcessError("failed", {
+    command: "cymbal trace --help",
+    args: ["trace", "--help"],
+    cwd: ".",
+    stdout: "",
+    stderr: "Error: unknown command 'trace'",
+    code: 1,
+  });
   await assert.rejects(
-    () => ensureCommandAvailable("trace", async () => { throw new Error("unknown command"); }, "."),
+    () => ensureCommandAvailable("trace", async () => { throw unsupported; }, "."),
     /does not support `cymbal trace`/,
   );
+  await assert.rejects(
+    () => ensureCommandAvailable("trace", async () => { throw new Error("permission denied"); }, "."),
+    /permission denied/,
+  );
+});
+
+test("ensureCommandAvailable caches concurrent successful probes", async () => {
+  clearAvailabilityCache();
+  let calls = 0;
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const runner = async () => {
+    calls += 1;
+    await gate;
+    return { command: "cymbal trace --help", args: ["trace", "--help"], cwd: ".", stdout: "usage", stderr: "", code: 0 };
+  };
+  const first = ensureCommandAvailable("trace", runner, ".");
+  const second = ensureCommandAvailable("trace", runner, ".");
+  release();
+  await Promise.all([first, second]);
+  await ensureCommandAvailable("trace", runner, ".");
+  assert.equal(calls, 1);
 });
 
 test("ensureCommandAvailable preserves missing Cymbal guidance", async () => {
@@ -88,12 +118,74 @@ test("optional tools pass command-specific parameters", async () => {
 
   assert.deepEqual(calls, [
     ["investigate", "--help"],
-    ["investigate", "one", "two"],
+    ["investigate", "--", "one", "two"],
     ["trace", "--help"],
-    ["trace", "one", "two", "--depth", "3", "--kinds", "call,use", "--limit", "4"],
+    ["trace", "--depth", "3", "--kinds", "call,use", "--limit", "4", "--", "one", "two"],
     ["context", "--help"],
-    ["context", "one", "--callers", "5"],
+    ["context", "--callers", "5", "--", "one"],
   ]);
+});
+
+test("optional tools return structured unsupported results", async () => {
+  clearAvailabilityCache();
+  const pi = { tools: {}, registerTool(tool) { this.tools[tool.name] = tool; } };
+  registerOptionalTools(pi);
+
+  const result = await pi.tools.cymbal_trace.execute(
+    "call-1",
+    { symbol: "x", format: "json" },
+    undefined,
+    undefined,
+    {
+      cwd: process.cwd(),
+      runCymbal: async (options) => {
+        throw new ProcessError("failed", {
+          command: `cymbal ${options.args.join(" ")}`,
+          args: options.args,
+          cwd: options.cwd,
+          stdout: "",
+          stderr: "Error: unknown command 'trace'",
+          code: 1,
+        });
+      },
+    },
+  );
+
+  assert.equal(result.details.status, "unsupported");
+  assert.deepEqual(JSON.parse(result.content[0].text), {
+    results: {},
+    status: "unsupported",
+    command: "trace",
+    diagnostics: ["Error: unknown command 'trace'", "failed"],
+  });
+});
+
+test("optional trace treats default graph output as JSON", async () => {
+  clearAvailabilityCache();
+  const pi = { tools: {}, registerTool(tool) { this.tools[tool.name] = tool; } };
+  registerOptionalTools(pi);
+
+  const result = await pi.tools.cymbal_trace.execute(
+    "call-1",
+    { symbol: "x", graph: true, format: "agent" },
+    undefined,
+    undefined,
+    {
+      cwd: process.cwd(),
+      runCymbal: async (options) => ({
+        command: `cymbal ${options.args.join(" ")}`,
+        args: options.args,
+        cwd: options.cwd,
+        stdout: options.args[1] === "--help" ? "usage" : '{"nodes":[]}',
+        stderr: "",
+        code: 0,
+      }),
+    },
+  );
+
+  assert.equal(result.details.outputFormat, "json");
+  assert.equal(result.details.parsedJson, true);
+  assert.deepEqual(JSON.parse(result.content[0].text), { nodes: [] });
 });
 
 test("optional tools normalize no-result JSON output", async () => {

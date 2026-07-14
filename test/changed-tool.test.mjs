@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ProcessError } from "../src/cymbal.ts";
 import { registerChangedTool } from "../src/tools/changed.ts";
 
 function registerTool() {
@@ -47,22 +48,16 @@ test("cymbal_changed checks availability before running changed", async () => {
   assert.equal(result.content[0].text, "impacted symbols");
 });
 
-test("cymbal_changed reports unsupported command clearly", async () => {
+test("cymbal_changed returns a structured unsupported result", async () => {
   const tool = registerTool();
-
-  await assert.rejects(
-    () => tool.execute(
-      "call-1",
-      {},
-      undefined,
-      undefined,
-      {
-        cwd: process.cwd(),
-        runCymbal: async () => { throw new Error("unknown command"); },
-      },
-    ),
-    /does not support `cymbal changed`/,
-  );
+  const result = await tool.execute("call-1", {}, undefined, undefined, {
+    cwd: process.cwd(),
+    runCymbal: async (options) => {
+      throw new ProcessError("failed", { command: "cymbal changed --help", args: options.args, cwd: options.cwd, stdout: "", stderr: "Error: unknown command 'changed'", code: 1 });
+    },
+  });
+  assert.equal(result.details.status, "unsupported");
+  assert.match(result.content[0].text, /does not support `cymbal changed`/);
 });
 
 // Empty-diff in text/agent mode: cymbal writes the sentence to STDERR (not stdout)

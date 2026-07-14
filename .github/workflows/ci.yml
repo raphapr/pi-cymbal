@@ -12,7 +12,38 @@ permissions:
 
 jobs:
   validate:
-    name: Validate
+    name: Validate (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22.19.0, 24.x]
+    steps:
+      - name: Checkout
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git fetch --depth=1 \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "${GITHUB_SHA}"
+          git checkout --force FETCH_HEAD
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate package
+        run: npm run validate
+
+  cymbal-integration:
+    name: Cymbal v0.14.0 integration
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,16 +58,69 @@ jobs:
           git checkout --force FETCH_HEAD
 
       - name: Setup Node
-        shell: bash
-        run: |
-          curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-          sudo apt-get install -y nodejs
-          sudo npm install -g npm@^11.10.0
-          node --version
-          npm --version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate package
-        run: npm run validate
+      - name: Install pinned Cymbal
+        shell: bash
+        run: |
+          set -euo pipefail
+          install_dir="$RUNNER_TEMP/cymbal-v0.14.0"
+          archive="$RUNNER_TEMP/cymbal-v0.14.0.tar.gz"
+          mkdir -p "$install_dir"
+          curl -fsSL \
+            https://github.com/1broseidon/cymbal/releases/download/v0.14.0/cymbal_v0.14.0_linux_x86_64.tar.gz \
+            -o "$archive"
+          printf '%s  %s\n' \
+            bfc951722b773b5f07c3a291530684ea737b012ad866505c6971a92d6bd9810d \
+            "$archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$install_dir"
+          CYMBAL_BIN="$(realpath "$install_dir/cymbal")"
+          test -x "$CYMBAL_BIN"
+          CYMBAL_BIN_SHA256="$(sha256sum "$CYMBAL_BIN" | awk '{print $1}')"
+          echo "CYMBAL_BIN=$CYMBAL_BIN" >> "$GITHUB_ENV"
+          echo "CYMBAL_BIN_SHA256=$CYMBAL_BIN_SHA256" >> "$GITHUB_ENV"
+
+      - name: Index fixture repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$("$CYMBAL_BIN" version | sed -n '1p' | tr -d '\r')" = "cymbal v0.14.0"
+          cymbal_home="$RUNNER_TEMP/pi-cymbal-home"
+          mkdir -p "$cymbal_home"
+          HOME="$cymbal_home" "$CYMBAL_BIN" index .
+          echo "HOME=$cymbal_home" >> "$GITHUB_ENV"
+
+      - name: Run real Cymbal adapter smoke tests
+        env:
+          REQUIRE_CYMBAL: "1"
+        run: node --import tsx --test test/cli-smoke.test.mjs test/pi-compat.test.mjs
+
+      - name: Verify unchanged pinned Cymbal binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(sha256sum "$CYMBAL_BIN" | awk '{print $1}')" = "$CYMBAL_BIN_SHA256"
+
+  workflow-lint:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git fetch --depth=1 \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "${GITHUB_SHA}"
+          git checkout --force FETCH_HEAD
+
+      - name: Run actionlint
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7

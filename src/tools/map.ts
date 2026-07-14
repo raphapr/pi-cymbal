@@ -5,7 +5,7 @@ import { resolveSinglePathRun } from "./path.js";
 
 export function resolveMapRun(params: MapArgs, cwd: string): ResolvedToolRun<MapArgs> {
   if (params.repos) return { cwd, params };
-  return resolveSinglePathRun(params, cwd, params.path, (next, path) => ({ ...next, path }), { omitRepoRoot: true });
+  return resolveSinglePathRun(params, cwd, params.path, (next, path) => ({ ...next, path }), { omitRepoRoot: true, classification: "always" });
 }
 
 export function registerMapTool(pi: ExtensionAPI): void {

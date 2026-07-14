@@ -1,11 +1,11 @@
 import { isAbsolute } from "node:path";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { normalizePathArg, runCymbal, type RunCymbalResult } from "../cymbal.js";
-import { formatCymbalOutput, type CymbalToolResult } from "../output.js";
+import { formatCymbalBatch, formatCymbalOutput, type CymbalBatchItem, type CymbalToolResult } from "../output.js";
 import { buildShowArgs, ShowParams, type ShowArgs } from "../params.js";
 import { cymbalToolRenderers } from "../render.js";
 import type { ToolContext } from "./common.js";
-import { findRepoRoot, resolveMultiPathRun, resolvePathFilterRun, resolveSinglePathRun, splitPathRangeSuffix, type RepoRootFs } from "./path.js";
+import { findRepoRoot, repoRootKey, resolveMultiPathRun, resolvePathFilterRun, resolvePathOperand, resolveSinglePathRun, splitPathRangeSuffix, type RepoRootFs } from "./path.js";
 import { recoverCymbalNotFound } from "./recovery.js";
 
 function showTargets(params: ShowArgs): string[] {
@@ -23,24 +23,27 @@ function withScopedFilter(params: ShowArgs, key: "path" | "exclude", value: stri
   return next;
 }
 
-function targetRepoRoot(targets: string[], fs?: RepoRootFs): string | undefined {
-  const absolutePaths = targets.map(absolutePathTarget).filter((target): target is string => Boolean(target));
+function targetRepoRoot(targets: string[], cwd: string, fs?: RepoRootFs): string | undefined {
+  const resolved = targets.map((target) => resolvePathOperand(target, cwd, "show", fs));
+  const absolutePaths = resolved.map(absolutePathTarget).filter((target): target is string => Boolean(target));
   if (!absolutePaths.length) return undefined;
-  const roots = absolutePaths.map((target) => findRepoRoot(target, fs));
+  const roots = absolutePaths.map((target) => findRepoRoot(target, fs)).filter((root): root is string => Boolean(root));
   const root = roots[0];
-  return root && roots.every((candidate) => candidate === root) ? root : undefined;
+  if (!root) return undefined;
+  const key = repoRootKey(root, fs);
+  return roots.every((candidate) => repoRootKey(candidate, fs) === key) ? root : undefined;
 }
 
 export function resolveShowRun(params: ShowArgs, cwd: string, fs?: RepoRootFs) {
   const targets = showTargets(params);
-  const targetRoot = targetRepoRoot(targets, fs);
+  const targetRoot = targetRepoRoot(targets, cwd, fs);
   const targetRun = params.targets?.length
-    ? resolveMultiPathRun(params, cwd, params.targets, (next, values) => ({ ...next, targets: values }), { fs })
-    : resolveSinglePathRun(params, cwd, params.target, (next, target) => ({ ...next, target }), { fs });
+    ? resolveMultiPathRun(params, cwd, params.targets, (next, values) => ({ ...next, targets: values }), { fs, classification: "show" })
+    : resolveSinglePathRun(params, cwd, params.target, (next, target) => ({ ...next, target }), { fs, classification: "show" });
 
-  return resolvePathFilterRun(targetRun.params, targetRun.cwd, {
-    path: targetRun.params.path,
-    exclude: targetRun.params.exclude,
+  return resolvePathFilterRun(targetRun.params, cwd, {
+    path: params.path,
+    exclude: params.exclude,
     applyPath: (next, value) => withScopedFilter(next, "path", value),
     applyExclude: (next, value) => withScopedFilter(next, "exclude", value),
     targetRepoRoot: targetRoot,
@@ -55,30 +58,15 @@ function absolutePathTarget(target: string): string | undefined {
 }
 
 function validateJsonTargetScope(targets: string[], cwd: string): void {
-  const absolutePaths = targets.map(absolutePathTarget).filter((target): target is string => Boolean(target));
+  const resolved = targets.map((target) => resolvePathOperand(target, cwd, "show"));
+  const absolutePaths = resolved.map(absolutePathTarget).filter((target): target is string => Boolean(target));
   if (!absolutePaths.length) return;
 
   const repoRoots = absolutePaths.map((target) => findRepoRoot(target));
-  const uniqueRepoRoots = new Set(repoRoots.filter((root): root is string => Boolean(root)));
-  if (uniqueRepoRoots.size > 1 || repoRoots.some((root) => !root)) {
+  const keys = new Set(repoRoots.filter((root): root is string => Boolean(root)).map((root) => repoRootKey(root)));
+  if (keys.size > 1 || repoRoots.some((root) => !root)) {
     throw new Error("cymbal_show cannot combine cross-repo or no-repo JSON targets; split them into separate calls.");
   }
-
-  const [repoRoot] = uniqueRepoRoots;
-  if (!repoRoot) return;
-
-  const hasNonAbsoluteTargets = absolutePaths.length < targets.length;
-  if (hasNonAbsoluteTargets && findRepoRoot(cwd) !== repoRoot) {
-    throw new Error("cymbal_show cannot combine mixed-scope JSON targets; split them into separate calls.");
-  }
-}
-
-function combinedStatus(results: CymbalToolResult[]): "ok" | "partial" | "not_found" | "error" {
-  const statuses = results.map((result) => result.details.status);
-  if (statuses.every((status) => status === "ok")) return "ok";
-  if (statuses.every((status) => status === "not_found")) return "not_found";
-  if (statuses.some((status) => status === "ok")) return "partial";
-  return "error";
 }
 
 function showJsonStatus(stdout: string): "partial" | "not_found" | undefined {
@@ -107,24 +95,28 @@ function normalizeShowJsonResult(result: RunCymbalResult, format: ShowArgs["form
   return status ? { ...result, status } : result;
 }
 
-async function showWithParams(params: ShowArgs, signal: AbortSignal | undefined, ctx: ToolContext): Promise<CymbalToolResult> {
+async function runShowWithParams(params: ShowArgs, signal: AbortSignal | undefined, ctx: ToolContext): Promise<RunCymbalResult> {
   const runner = ctx.runCymbal ?? runCymbal;
   const run = resolveShowRun(params, ctx.cwd);
   const args = buildShowArgs(run.params);
 
   try {
-    const result = normalizeShowJsonResult(await runner({ cwd: run.cwd, args, signal }), params.format);
-    return await formatCymbalOutput({ result, format: params.format ?? "agent" });
+    return normalizeShowJsonResult(await runner({ cwd: run.cwd, args, signal }), params.format);
   } catch (error) {
     const requestedTarget = run.params.target ?? run.params.targets?.join(" ");
     const recovered = recoverCymbalNotFound(error, { cwd: run.cwd, args, requestedTarget, format: params.format });
     if (!recovered) throw error;
-    return await formatCymbalOutput({ result: recovered, format: params.format ?? "agent" });
+    return recovered;
   }
 }
 
-async function showOne(target: string, params: ShowArgs, signal: AbortSignal | undefined, ctx: ToolContext): Promise<CymbalToolResult> {
-  return await showWithParams({ ...params, target, targets: undefined }, signal, ctx);
+async function showWithParams(params: ShowArgs, signal: AbortSignal | undefined, ctx: ToolContext): Promise<CymbalToolResult> {
+  const result = await runShowWithParams(params, signal, ctx);
+  return await formatCymbalOutput({ result, format: params.format ?? "agent" });
+}
+
+async function showOneResult(target: string, params: ShowArgs, signal: AbortSignal | undefined, ctx: ToolContext): Promise<RunCymbalResult> {
+  return await runShowWithParams({ ...params, target, targets: undefined }, signal, ctx);
 }
 
 export function registerShowTool(pi: ExtensionAPI): void {
@@ -139,7 +131,6 @@ export function registerShowTool(pi: ExtensionAPI): void {
       ...cymbalToolRenderers("cymbal_show"),
       async execute(_toolCallId, params: ShowArgs, signal, _onUpdate, ctx: ToolContext) {
         const targets = showTargets(params);
-        const results = [];
 
         // Validate the `targets[]` JSON form even when only one element is supplied,
         // so a single absolute no-repo target rejects with the same diagnostic as larger batches.
@@ -147,30 +138,19 @@ export function registerShowTool(pi: ExtensionAPI): void {
           validateJsonTargetScope(targets, ctx.cwd);
         }
 
-        if (targets.length === 1) return await showOne(targets[0], params, signal, ctx);
+        if (targets.length === 1) {
+          const result = await showOneResult(targets[0], params, signal, ctx);
+          return await formatCymbalOutput({ result, format: params.format ?? "agent" });
+        }
         if (params.format === "json") {
           return await showWithParams({ ...params, target: undefined, targets }, signal, ctx);
         }
 
+        const items: CymbalBatchItem[] = [];
         for (const target of targets) {
-          results.push(await showOne(target, params, signal, ctx));
+          items.push({ target, result: await showOneResult(target, params, signal, ctx) });
         }
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: results
-                .map((result, index) => `## ${targets[index]}\n\n${result.content[0]?.text ?? ""}`)
-                .join("\n\n---\n\n"),
-            },
-          ],
-          details: {
-            outputFormat: params.format ?? "agent",
-            status: combinedStatus(results),
-            results: results.map((result) => result.details),
-          },
-        };
+        return await formatCymbalBatch({ items, format: "agent" });
       },
     }),
   );

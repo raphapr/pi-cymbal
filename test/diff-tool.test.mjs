@@ -41,26 +41,20 @@ test("cymbal_diff checks availability and runs diff", async () => {
     },
   );
 
-  assert.deepEqual(calls.map((call) => call.args), [["diff", "--help"], ["diff", "buildSearchArgs", "main", "--stat"]]);
+  assert.deepEqual(calls.map((call) => call.args), [["diff", "--help"], ["diff", "--stat", "--", "buildSearchArgs", "main"]]);
   assert.equal(result.content[0].text, "diff output");
 });
 
-test("cymbal_diff reports unsupported command clearly", async () => {
+test("cymbal_diff returns a structured unsupported result", async () => {
   const tool = registerTool();
-
-  await assert.rejects(
-    () => tool.execute(
-      "call-1",
-      { symbol: "Missing" },
-      undefined,
-      undefined,
-      {
-        cwd: process.cwd(),
-        runCymbal: async () => { throw new Error("unknown command"); },
-      },
-    ),
-    /does not support `cymbal diff`/,
-  );
+  const result = await tool.execute("call-1", { symbol: "Missing" }, undefined, undefined, {
+    cwd: process.cwd(),
+    runCymbal: async (options) => {
+      throw new ProcessError("failed", { command: "cymbal diff --help", args: options.args, cwd: options.cwd, stdout: "", stderr: "Error: unknown command 'diff'", code: 1 });
+    },
+  });
+  assert.equal(result.details.status, "unsupported");
+  assert.match(result.content[0].text, /does not support `cymbal diff`/);
 });
 
 test("cymbal_diff recovers missing symbol output", async () => {

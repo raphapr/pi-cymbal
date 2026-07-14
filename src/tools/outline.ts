@@ -1,6 +1,6 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { runCymbal, type OutputFormat, type RunCymbalResult } from "../cymbal.js";
-import { formatCymbalOutput, type CymbalToolResult } from "../output.js";
+import { formatCymbalBatch, formatCymbalOutput, type CymbalBatchItem } from "../output.js";
 import { buildOutlineArgs, OutlineParams, type OutlineArgs } from "../params.js";
 import { cymbalToolRenderers } from "../render.js";
 import type { ToolContext } from "./common.js";
@@ -8,17 +8,7 @@ import { resolveMultiPathRun } from "./path.js";
 import { normalizeEmptyCymbalNotFound, recoverCymbalNotFound } from "./recovery.js";
 
 export function resolveOutlineRun(params: OutlineArgs, cwd: string) {
-  return resolveMultiPathRun(params, cwd, params.files, (next, files) => ({ ...next, files }));
-}
-
-function combinedStatus(results: CymbalToolResult[]): "ok" | "partial" | "not_found" | "empty" | "error" {
-  const statuses = results.map((result) => result.details.status);
-  if (statuses.every((status) => status === "ok")) return "ok";
-  if (statuses.every((status) => status === "not_found")) return "not_found";
-  if (statuses.every((status) => status === "empty")) return "empty";
-  if (statuses.some((status) => status === "ok")) return "partial";
-  if (statuses.some((status) => status === "not_found" || status === "empty")) return "partial";
-  return "error";
+  return resolveMultiPathRun(params, cwd, params.files, (next, files) => ({ ...next, files }), { classification: "always" });
 }
 
 function diagnostics(output: string): string[] {
@@ -66,9 +56,9 @@ export function registerOutlineTool(pi: ExtensionAPI): void {
       promptGuidelines: ["Use cymbal_outline before reading a whole local code file when file structure is enough."],
       ...cymbalToolRenderers("cymbal_outline"),
       async execute(_toolCallId, params: OutlineArgs, signal, _onUpdate, ctx: ToolContext) {
+        if (params.files.length < 1 || params.files.length > 32) throw new RangeError("files must contain between 1 and 32 paths");
         const runner = ctx.runCymbal ?? runCymbal;
-        const formatted = [];
-        const commands = [];
+        const items: CymbalBatchItem[] = [];
 
         for (const file of params.files) {
           const run = resolveOutlineRun({ ...params, files: [file] }, ctx.cwd);
@@ -76,34 +66,16 @@ export function registerOutlineTool(pi: ExtensionAPI): void {
           const args = buildOutlineArgs({ files: [scopedFile], names: params.names, signatures: params.signatures, format: params.format });
           try {
             const result = normalizeOutlineResult(await runner({ cwd: run.cwd, args, signal }), scopedFile, params.format);
-            commands.push({ command: result.command, args: result.args, exitCode: result.code });
-            formatted.push(await formatCymbalOutput({ result, format: params.format ?? "agent" }));
+            items.push({ target: file, result });
           } catch (error) {
             const recovered = recoverCymbalNotFound(error, { cwd: run.cwd, args, requestedTarget: scopedFile, format: params.format });
             if (!recovered) throw error;
-            commands.push({ command: recovered.command, args: recovered.args, exitCode: recovered.code });
-            formatted.push(await formatCymbalOutput({ result: recovered, format: params.format ?? "agent" }));
+            items.push({ target: file, result: recovered });
           }
         }
 
-        if (formatted.length === 1) return formatted[0];
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: formatted
-                .map((result, index) => `## ${params.files[index]}\n\n${result.content[0]?.text ?? ""}`)
-                .join("\n\n---\n\n"),
-            },
-          ],
-          details: {
-            outputFormat: params.format ?? "agent",
-            status: combinedStatus(formatted),
-            commands,
-            results: formatted.map((result) => result.details),
-          },
-        };
+        if (items.length === 1) return await formatCymbalOutput({ result: items[0].result, format: params.format ?? "agent" });
+        return await formatCymbalBatch({ items, format: params.format ?? "agent" });
       },
     }),
   );

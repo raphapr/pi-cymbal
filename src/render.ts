@@ -75,13 +75,13 @@ function statusLabel(status: string | undefined, isError: boolean | undefined): 
 
 function statusIcon(status: string | undefined, isError: boolean | undefined): string {
   if (isError || status === "error") return "✗";
-  if (status === "not_found" || status === "no_repo") return "!";
+  if (["not_found", "no_repo", "partial", "empty", "unsupported"].includes(status ?? "")) return "!";
   return "✓";
 }
 
 function resultColor(status: string | undefined, isError: boolean | undefined): string {
   if (isError || status === "error") return "error";
-  if (status === "not_found" || status === "no_repo") return "warning";
+  if (["not_found", "no_repo", "partial", "empty", "unsupported"].includes(status ?? "")) return "warning";
   return "success";
 }
 
