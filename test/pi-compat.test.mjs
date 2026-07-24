@@ -26,7 +26,7 @@ test("package declares a Pi extension manifest", async () => {
   const extensionPath = packageJson.pi?.extensions?.[0];
 
   assert.ok(packageJson.keywords.includes("pi-package"));
-  assert.equal(extensionPath, "./src/index.ts");
+  assert.equal(extensionPath, "./dist/index.ts");
   assert.equal(packageJson.pi.image, "https://raw.githubusercontent.com/raphapr/pi-cymbal/main/assets/pi-cymbal-gallery.png");
   assert.ok(packageJson.files.includes("assets/"));
 

@@ -170,6 +170,12 @@ pi --no-extensions -e . --no-session -p \
   "Use cymbal_structure to orient in this repo, then use cymbal_diff on registerCymbalHooks."
 ```
 
+## Build
+
+The published extension entry is a single bundled `dist/index.ts`, produced by `npm run build` (run automatically by `pretest` and `prepack`). Bundling `src/` into one file cuts Pi's startup module-load cost by ~75% versus loading the multi-file source graph.
+
+The bundle is emitted as `.ts`, not `.js`, on purpose. Pi's loader runs extensions through jiti with `tryNative`: a `.js` entry loads natively and resolves `@earendil-works/*` from disk (a second framework copy, ~950ms), while a `.ts` entry keeps the jiti path that aliases the framework to Pi's already-loaded copies. Framework packages and `typebox` are kept external for the same reason. Do not switch the entry to `.js`.
+
 ## Publishing
 
 1. Bump `package.json` version.
