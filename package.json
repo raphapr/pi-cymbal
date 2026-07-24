@@ -30,7 +30,6 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.mjs",
-    "pretest": "npm run build",
     "build": "esbuild src/index.ts --bundle --format=esm --platform=node --external:@earendil-works/* --external:typebox --outfile=dist/index.ts",
     "prepack": "npm run build",
     "validate": "npm run typecheck && npm test && npm pack --dry-run"

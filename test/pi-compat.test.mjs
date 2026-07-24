@@ -30,13 +30,14 @@ test("package declares a Pi extension manifest", async () => {
   assert.equal(packageJson.pi.image, "https://raw.githubusercontent.com/raphapr/pi-cymbal/main/assets/pi-cymbal-gallery.png");
   assert.ok(packageJson.files.includes("assets/"));
 
-  const extension = await import(resolve(process.cwd(), extensionPath));
+  // Import the source entry, not the manifest's dist bundle: the bundle is a build
+  // artifact absent during direct test runs, and it is emitted from this same source.
+  const extension = await import(resolve(process.cwd(), "./src/index.ts"));
   assert.equal(typeof extension.default, "function");
 });
 
 test("package-baseline Pi API registers the complete extension surface", async () => {
-  const packageJson = JSON.parse(await readFile(resolve(process.cwd(), "package.json"), "utf8"));
-  const extension = await import(resolve(process.cwd(), packageJson.pi.extensions[0]));
+  const extension = await import(resolve(process.cwd(), "./src/index.ts"));
   const tools = [];
   const commands = [];
   const events = [];
