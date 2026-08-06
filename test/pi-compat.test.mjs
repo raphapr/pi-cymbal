@@ -56,7 +56,7 @@ test("package-baseline Pi API registers the complete extension surface", async (
 
   assert.doesNotThrow(() => extension.default(pi));
   assert.deepEqual(tools.sort(), expectedTools);
-  assert.deepEqual(commands, ["cymbal:remind"]);
+  assert.deepEqual(commands, ["cymbal"]);
   for (const event of ["session_start", "session_shutdown", "before_agent_start", "tool_call", "tool_execution_start"]) {
     assert.ok(events.includes(event), `missing ${event} registration`);
   }

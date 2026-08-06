@@ -103,6 +103,29 @@ test("reminder failures are swallowed", async () => {
   assert.deepEqual(hooks.injectReminder({ systemPrompt: "Base" }), { systemPrompt: "Base" });
 });
 
+test("configuration and active tools suppress reminder and nudges", async () => {
+  let active = true;
+  let calls = 0;
+  const hooks = createCymbalHooks({
+    hasActiveCymbalTools: () => active,
+    run: async () => {
+      calls += 1;
+      return { command: "cymbal hook", args: [], cwd: ".", stdout: "Use Cymbal", stderr: "", code: 0 };
+    },
+  });
+
+  await hooks.startSession({ systemPrompt: false, nudges: false });
+  assert.equal(await hooks.refreshReminder({ cwd: "." }), false);
+  await hooks.handleToolCall({ toolName: "bash", input: { command: "rg auth" } }, { cwd: "." });
+  assert.deepEqual(hooks.injectReminder({ systemPrompt: "Base" }), { systemPrompt: "Base" });
+
+  active = false;
+  await hooks.startSession();
+  assert.equal(await hooks.refreshReminder({ cwd: "." }), false);
+  await hooks.handleToolCall({ toolName: "bash", input: { command: "rg auth" } }, { cwd: "." });
+  assert.equal(calls, 0);
+});
+
 test("nudge sends hidden advisory steering message without blocking", async () => {
   const messages = [];
   const hooks = createCymbalHooks({

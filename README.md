@@ -134,6 +134,30 @@ cymbal hook nudge --format=json
 
 Nudges do not block. They are hidden from TUI output. Pi may show them as notifications. Duplicate nudges are suppressed per cwd for 60s. `Read` and `Glob` suppress per tool.
 
+### Guidance configuration
+
+Set guidance globally in `~/.pi/agent/extensions/pi-cymbal.json` or per project in `.pi/pi-cymbal.json`:
+
+```json
+{
+  "systemPrompt": false,
+  "nudges": false
+}
+```
+
+Both options default to `true`. Project settings override global settings. pi-cymbal ignores project settings for untrusted projects and suppresses both features whenever no `cymbal_*` tools are active.
+
+Change guidance for the current session with `/cymbal`:
+
+```text
+/cymbal
+/cymbal off
+/cymbal system-prompt on
+/cymbal nudges off
+```
+
+Runtime changes last until the next session and do not modify either configuration file.
+
 ## Paths and Repos
 
 pi-cymbal relies on Cymbal's Git repo auto-detection.

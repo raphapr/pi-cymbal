@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_CYMBAL_CONFIG, type CymbalConfig } from "./config.js";
 import { runCymbal, type RunCymbalOptions, type RunCymbalResult } from "./cymbal.js";
 
 export interface NudgeSuggestion {
@@ -15,12 +16,14 @@ export interface HookDeps {
   run?: HookRunner;
   sendMessage?: SendMessage;
   now?: () => number;
+  hasActiveCymbalTools?: () => boolean;
 }
 
 export interface HookContext {
   cwd: string;
   signal?: AbortSignal;
   hasUI?: boolean;
+  isProjectTrusted?: () => boolean;
   ui?: {
     notify?: (message: string, type?: "info" | "warning" | "error") => void;
     setToolsExpanded?: (expanded: boolean) => void;
@@ -119,11 +122,13 @@ export function isCymbalToolName(toolName: string): boolean {
 export function createCymbalHooks(deps: HookDeps = {}) {
   const run = deps.run ?? runCymbal;
   const now = deps.now ?? Date.now;
+  const hasActiveCymbalTools = deps.hasActiveCymbalTools ?? (() => true);
   const seenSuggestions = new Map<string, number>();
   const inFlight = new Map<string, Promise<void>>();
   const tracked = new Set<Promise<unknown>>();
   let sessionController = new AbortController();
   let acceptingWork = true;
+  let config: CymbalConfig = { ...DEFAULT_CYMBAL_CONFIG };
   let reminderText = "";
 
   function track<T>(promise: Promise<T>): Promise<T> {
@@ -164,7 +169,7 @@ export function createCymbalHooks(deps: HookDeps = {}) {
         signal: combinedSignal(ctx.signal),
       });
       const suggestion = parseNudgeResponse(result.stdout);
-      if (!suggestion || shouldSuppressSuggestion(ctx.cwd, suggestion.suggest, event.toolName)) return;
+      if (!config.nudges || !hasActiveCymbalTools() || !suggestion || shouldSuppressSuggestion(ctx.cwd, suggestion.suggest, event.toolName)) return;
 
       const content = buildNudgeMessage(suggestion);
       await deps.sendMessage?.({ customType: "pi-cymbal-nudge", content, display: false });
@@ -175,8 +180,9 @@ export function createCymbalHooks(deps: HookDeps = {}) {
   }
 
   const hooks = {
-    async startSession(): Promise<void> {
+    async startSession(nextConfig: CymbalConfig = { ...DEFAULT_CYMBAL_CONFIG }): Promise<void> {
       acceptingWork = false;
+      config = nextConfig;
       if (!sessionController.signal.aborted) sessionController.abort(new DOMException("Cymbal session replaced", "AbortError"));
       await settleTracked();
       inFlight.clear();
@@ -196,7 +202,10 @@ export function createCymbalHooks(deps: HookDeps = {}) {
     },
 
     async refreshReminder(ctx: HookContext): Promise<boolean> {
-      if (!acceptingWork) return false;
+      if (!acceptingWork || !config.systemPrompt || !hasActiveCymbalTools()) {
+        reminderText = "";
+        return false;
+      }
       const operation = (async () => {
         try {
           const result = await run({
@@ -216,10 +225,19 @@ export function createCymbalHooks(deps: HookDeps = {}) {
     },
 
     injectReminder(event: { systemPrompt: string }): { systemPrompt: string } {
-      if (!reminderText) return { systemPrompt: event.systemPrompt };
+      if (!config.systemPrompt || !hasActiveCymbalTools() || !reminderText) return { systemPrompt: event.systemPrompt };
       return {
         systemPrompt: `${event.systemPrompt}\n\n# Cymbal navigation guidance\n\n${reminderText}`,
       };
+    },
+
+    getConfig(): CymbalConfig {
+      return { ...config };
+    },
+
+    updateConfig(nextConfig: Partial<CymbalConfig>): void {
+      config = { ...config, ...nextConfig };
+      if (!config.systemPrompt) reminderText = "";
     },
 
     collapseCymbalTool(event: ToolExecutionStartEventLike, ctx: HookContext): void {
@@ -229,7 +247,7 @@ export function createCymbalHooks(deps: HookDeps = {}) {
 
     handleToolCall(event: ToolCallEventLike, ctx: HookContext): Promise<void> {
       const payload = buildNudgePayload(event.toolName, event.input);
-      if (!payload || !acceptingWork) return Promise.resolve();
+      if (!payload || !acceptingWork || !config.nudges || !hasActiveCymbalTools()) return Promise.resolve();
 
       const key = `${ctx.cwd}\u0000${payload}`;
       const existing = inFlight.get(key);
@@ -256,6 +274,7 @@ export function registerCymbalHooks(pi: ExtensionAPI): ReturnType<typeof createC
     sendMessage: async (message) => {
       await pi.sendMessage(message);
     },
+    hasActiveCymbalTools: () => pi.getActiveTools().some(isCymbalToolName),
   });
 
   pi.on("before_agent_start", (event: { systemPrompt: string }) => hooks.injectReminder(event));
@@ -268,13 +287,31 @@ export function registerCymbalHooks(pi: ExtensionAPI): ReturnType<typeof createC
     hooks.collapseCymbalTool(event, ctx);
   });
 
-  pi.registerCommand("cymbal:remind", {
-    description: "Refresh Cymbal navigation reminder guidance",
-    handler: async (_args: string, ctx: HookContext) => {
-      const refreshed = await hooks.refreshReminder(ctx);
-      if (ctx.hasUI && ctx.ui?.notify) {
-        ctx.ui.notify(refreshed ? "Cymbal reminder refreshed" : "Cymbal reminder unavailable", refreshed ? "info" : "warning");
+  pi.registerCommand("cymbal", {
+    description: "Show or change Cymbal settings for this session",
+    handler: async (args: string, ctx: HookContext) => {
+      const parts = args.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      if (parts.length === 0 || (parts.length === 1 && parts[0] === "status")) {
+        const current = hooks.getConfig();
+        ctx.ui?.notify?.(`Cymbal system prompt: ${current.systemPrompt ? "on" : "off"}; nudges: ${current.nudges ? "on" : "off"}`, "info");
+        return;
       }
+
+      const enabled = parts.at(-1) === "on" ? true : parts.at(-1) === "off" ? false : undefined;
+      const target = parts.length === 1 ? "all" : parts[0];
+      if (enabled === undefined || !["all", "system-prompt", "nudges"].includes(target) || parts.length > 2) {
+        ctx.ui?.notify?.("Usage: /cymbal [status|on|off|system-prompt on|off|nudges on|off]", "warning");
+        return;
+      }
+
+      const next = target === "all"
+        ? { systemPrompt: enabled, nudges: enabled }
+        : target === "system-prompt"
+          ? { systemPrompt: enabled }
+          : { nudges: enabled };
+      hooks.updateConfig(next);
+      if (enabled && target !== "nudges") await hooks.refreshReminder(ctx);
+      ctx.ui?.notify?.(`${target === "all" ? "Cymbal" : `Cymbal ${target}`} ${enabled ? "enabled" : "disabled"} for this session`, "info");
     },
   });
 

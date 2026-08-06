@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { loadCymbalConfig } from "./config.js";
 import { abortCymbalSession, startCymbalSession, waitForCymbalOperations } from "./cymbal.js";
 import { registerCymbalHooks, type HookContext } from "./hooks.js";
 import { cleanupSpills, startSpillSession, stopSpillSession, waitForSpillFinalizers } from "./spill.js";
@@ -35,7 +36,7 @@ export default function cymbalExtension(pi: ExtensionAPI): void {
   pi.on("session_start", async (_event: unknown, ctx: HookContext) => {
     startSpillSession();
     startCymbalSession();
-    await hooks.startSession();
+    await hooks.startSession(loadCymbalConfig(ctx.cwd, ctx.isProjectTrusted?.() ?? false));
     await hooks.refreshReminder(ctx);
   });
 
