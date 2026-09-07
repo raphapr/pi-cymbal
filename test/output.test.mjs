@@ -24,6 +24,23 @@ test("formatCymbalOutput pretty prints json output", async () => {
   assert.equal(result.details.parsedJson, true);
 });
 
+test("formatCymbalOutput preserves v0.15.0 graph and conflict metadata", async () => {
+  const payloads = [
+    { version: "0.1", results: { nodes: [], edges: [{ from: "caller", to: "seed", kind: "call", resolved: true, indirect: true }], edges_truncated: true } },
+    { version: "0.1", results: { changed_symbols: 0, conflicted_files: 1, results: [] } },
+  ];
+  for (const payload of payloads) {
+    for (const maxBytes of [50_000, 250]) {
+      const result = await formatCymbalOutput({
+        result: { command: "cymbal", args: [], cwd: ".", stdout: JSON.stringify(payload), stderr: "", code: 0 },
+        format: "json", maxBytes,
+      });
+      const fullOutput = result.details.fullOutputPath ? await readFile(result.details.fullOutputPath, "utf8") : result.content[0].text;
+      assert.deepEqual(JSON.parse(fullOutput), payload);
+    }
+  }
+});
+
 test("formatCymbalOutput wraps malformed native JSON as an exact error envelope", async () => {
   const result = await formatCymbalOutput({
     result: { command: "cymbal search x --json", args: ["search", "x", "--json"], cwd: ".", stdout: "not json", stderr: "", code: 0 },

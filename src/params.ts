@@ -17,6 +17,9 @@ export const MapParams = Type.Object({
   depth: Type.Optional(Type.Integer({ minimum: 0, maximum: 100, description: "Tree depth passed to --depth." })),
   stats: Type.Optional(Type.Boolean({ description: "Include repository stats. Defaults to true." })),
   repos: Type.Optional(Type.Boolean({ description: "List indexed repositories instead of tree." })),
+  names: Type.Optional(Type.Boolean({ description: "List indexed repo-relative file names. Cannot be combined with path, depth, stats, or repos." })),
+  pattern: Type.Optional(Type.String({ description: "With names: filter files by substring or glob with **. No brace expansion." })),
+  lang: Type.Optional(Type.String({ description: "With names: filter by indexed language (as shown by stats)." })),
   format: FormatParam,
 });
 
@@ -83,7 +86,8 @@ export const ImpactParams = Type.Object({
   context: Type.Optional(ContextLines("Lines of context around each call site.")),
   depth: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: "Impact depth." })),
   limit: Type.Optional(ResultLimit("Maximum results.")),
-  noTests: Type.Optional(Type.Boolean({ description: "Exclude callers in test files from the impact set." })),
+  noTests: Type.Optional(Type.Boolean({ description: "Exclude test callers from impact, including graphs. Production callers reached through tests remain connected." })),
+  testPath: Type.Optional(PathValues("Additional test-path patterns (substring or glob with **). Affects classification and counts, even without noTests.")),
   resolveScope: ResolveScopeParam,
   graph: Type.Optional(Type.Boolean({ description: "Emit graph output." })),
   graphFormat: GraphFormatParam,
@@ -144,6 +148,7 @@ export const ChangedParams = Type.Object({
   maxSymbols: Type.Optional(Type.Integer({ minimum: 0, maximum: 10_000, description: "Maximum changed symbols to analyze." })),
   maxImpact: Type.Optional(Type.Integer({ minimum: 0, maximum: 100_000, description: "Maximum impacted symbols to report." })),
   noTests: Type.Optional(Type.Boolean({ description: "Exclude callers in test files from the impact set." })),
+  testPath: Type.Optional(PathValues("Additional test-path patterns (substring or glob with **). Affects classification and counts, even without noTests.")),
   resolveScope: ResolveScopeParam,
   format: FormatParam,
 });
@@ -158,6 +163,9 @@ export interface MapArgs {
   depth?: number;
   stats?: boolean;
   repos?: boolean;
+  names?: boolean;
+  pattern?: string;
+  lang?: string;
   format?: OutputFormat;
 }
 
@@ -235,6 +243,7 @@ export interface ImpactArgs {
   depth?: number;
   limit?: number;
   noTests?: boolean;
+  testPath?: string | string[];
   resolveScope?: "same" | "family" | "all";
   graph?: boolean;
   graphFormat?: "mermaid" | "dot" | "json";
@@ -300,6 +309,7 @@ export interface ChangedArgs {
   maxSymbols?: number;
   maxImpact?: number;
   noTests?: boolean;
+  testPath?: string | string[];
   resolveScope?: "same" | "family" | "all";
   format?: OutputFormat;
 }
@@ -392,6 +402,19 @@ function escapeSymbolSearchQuery(query: string): string {
 }
 
 export function buildMapArgs(params: MapArgs): string[] {
+  if (params.names) {
+    if (params.path !== undefined || params.depth !== undefined || params.stats !== undefined || params.repos) {
+      throw new Error("names cannot be combined with path, depth, stats, or repos");
+    }
+    const args = ["ls", "--names"];
+    if (params.lang !== undefined) pushString(args, "--lang", params.lang);
+    addJson(args, params.format);
+    if (params.pattern !== undefined) args.push("--", params.pattern);
+    return args;
+  }
+  if (params.pattern !== undefined || params.lang !== undefined) {
+    throw new Error("pattern and lang require names: true");
+  }
   if (params.repos && (params.path !== undefined || params.depth !== undefined || params.stats !== undefined)) {
     throw new Error("repos cannot be combined with path, depth, or stats");
   }
@@ -505,6 +528,7 @@ export function buildImpactArgs(params: ImpactArgs): string[] {
   pushNumber(args, "--depth", params.depth, 1, 5);
   pushNumber(args, "--limit", params.limit, 1, 10_000);
   if (params.noTests) args.push("--no-tests");
+  pushRepeatedPaths(args, "--test-path", params.testPath);
   pushResolveScope(args, params.resolveScope);
   pushGraphArgs(args, params);
   if (params.includeUnresolved) args.push("--include-unresolved");
@@ -576,6 +600,7 @@ export function buildChangedArgs(params: ChangedArgs): string[] {
   pushNumber(args, "--max-symbols", params.maxSymbols, 0, 10_000);
   pushNumber(args, "--max-impact", params.maxImpact, 0, 100_000);
   if (params.noTests) args.push("--no-tests");
+  pushRepeatedPaths(args, "--test-path", params.testPath);
   pushResolveScope(args, params.resolveScope);
   return addJson(args, params.format);
 }

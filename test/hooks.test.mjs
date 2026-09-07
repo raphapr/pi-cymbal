@@ -29,6 +29,17 @@ test("buildNudgePayload maps find input to Glob", () => {
   assert.equal(buildNudgePayload("find", { pattern: "**/*.ts" }), JSON.stringify({ tool_name: "Glob", tool_input: { pattern: "**/*.ts" } }));
 });
 
+test("buildNudgePayload preserves explicit find roots for upstream suppression", () => {
+  for (const path of ["src", "/tmp/other-repo", "."]) {
+    assert.deepEqual(JSON.parse(buildNudgePayload("find", { pattern: "**/*.ts", path })), {
+      tool_name: "Glob", tool_input: { pattern: "**/*.ts", path },
+    });
+  }
+  for (const path of [undefined, "", "   ", 42]) {
+    assert.deepEqual(JSON.parse(buildNudgePayload("find", { pattern: "**/*.ts", path })).tool_input, { pattern: "**/*.ts" });
+  }
+});
+
 test("buildNudgePayload maps read input to Read file_path", () => {
   assert.equal(buildNudgePayload("read", { path: "src/hooks.ts" }), JSON.stringify({ tool_name: "Read", tool_input: { file_path: "src/hooks.ts" } }));
 });
@@ -74,9 +85,12 @@ test("parseNudgeResponse extracts suggestion", () => {
   assert.deepEqual(result, { suggest: "Use cymbal search auth", why: "symbol search", tool: "cymbal" });
 });
 
-test("parseNudgeResponse rewrites stale ls names suggestion", () => {
-  const result = parseNudgeResponse('{"suggest":"cymbal ls --names","why":"indexed paths","tool":"Glob"}');
-  assert.deepEqual(result, { suggest: "cymbal ls", why: "indexed paths", tool: "Glob" });
+test("parseNudgeResponse preserves unfiltered and patterned inventory suggestions", () => {
+  for (const suggest of ["cymbal ls --names", "cymbal ls --names '**/*.ts'"]) {
+    const result = parseNudgeResponse(JSON.stringify({ suggest: ` ${suggest} `, why: "indexed paths", tool: "Glob" }));
+    assert.deepEqual(result, { suggest, why: "indexed paths", tool: "Glob" });
+  }
+  assert.equal(parseNudgeResponse('{"suggest":"   "}'), undefined);
 });
 
 test("parseNudgeResponse ignores empty output", () => {

@@ -20,7 +20,7 @@ Pi has file and shell tools. `pi-cymbal` adds Cymbal tools so agents can inspect
 ## Requirements
 
 - Pi on Node.js `>=22.19.0`
-- Cymbal `v0.14.0`. CI pins this version for the documented tool and flag surface. Other versions may expose a different command contract.
+- Cymbal `v0.15.0`. CI pins this version for the documented tool and flag surface. Other versions may expose a different command contract.
 - Cymbal binary on `PATH`, or `CYMBAL_BIN` set
 
 ```sh
@@ -62,6 +62,7 @@ Find references to registerCymbalHooks with Cymbal.
 | Need                           | Pi tool                           | Cymbal command                       |
 | ------------------------------ | --------------------------------- | ------------------------------------ |
 | Repo overview                  | `cymbal_map`                      | `cymbal ls [path] --stats`           |
+| Indexed file inventory         | `cymbal_map` with `names: true`   | `cymbal ls --names [pattern]`        |
 | Structural summary             | `cymbal_structure`                | `cymbal structure`                   |
 | Symbol search                  | `cymbal_search`                   | `cymbal search <query>`              |
 | Text search                    | `cymbal_search` with `text: true` | `cymbal search --text <query>`       |
@@ -89,6 +90,18 @@ Useful params:
 - `cymbal_map`: `path`, `depth`, `stats`, `repos`
 - `cymbal_structure`: `limit`
 
+### List indexed files
+
+Use `cymbal_map` with `names: true` to list sorted, repo-relative code paths:
+
+```json
+{ "names": true, "pattern": "**/*.ts", "lang": "typescript", "format": "json" }
+```
+
+Omit `pattern` and `lang` for the full inventory. Patterns match substrings or globs with `**`, without brace expansion. Language names match those shown by `stats`. Names mode uses the current repository and cannot combine with `path`, `depth`, `stats`, or `repos`; `pattern` and `lang` require `names: true`.
+
+The inventory includes only indexed files, after skip rules. Use Pi's `find` for exact filesystem globs, non-code files, or files excluded from the index. Empty JSON inventories return `results: []`.
+
 ### Search and read narrowly
 
 Use `cymbal_search`, `cymbal_outline`, and `cymbal_show` instead of broad grep/read loops.
@@ -99,16 +112,23 @@ Use `cymbal_refs`, `cymbal_impact`, `cymbal_importers`, and `cymbal_impls` befor
 
 ### Review what your diff affects
 
-Use `cymbal_changed` to see the changed symbols of your current git diff plus their references and transitive impact in one call, before refactors or PRs. Scope it with `staged` (staged changes) or `base` (diff against a git ref); the two cannot be combined. Tune the blast radius with `depth`, `limit`, `maxSymbols`, `maxImpact`, `noTests`, and `resolveScope`.
+Use `cymbal_changed` to see the changed symbols of your current git diff plus their references and transitive impact in one call, before refactors or PRs. Scope it with `staged` (staged changes) or `base` (diff against a git ref); the two cannot be combined. Tune the blast radius with `depth`, `limit`, `maxSymbols`, `maxImpact`, `noTests`, `testPath`, and `resolveScope`.
 
 ### Cross-language and blast-radius params
 
 - `resolveScope` (`same` | `family` | `all`, default `family`) on `cymbal_impact`, `cymbal_trace`, `cymbal_investigate`, and `cymbal_changed` constrains cross-language name resolution.
-- `noTests` on `cymbal_impact` and `cymbal_changed` excludes callers in test files from the impact set.
+- `noTests` on `cymbal_impact` and `cymbal_changed` excludes callers in test files from the impact set. Impact graphs also hide test callers but retain reachable production callers through indirect edges.
+- `testPath` on these tools adds test-path patterns to the built-in conventions, for example `{"testPath": ["qa/", "**/*_it.go"]}`. Patterns use substring or glob-with-`**` matching, without brace expansion. They affect production/test splits and reference counts even without `noTests`.
 - `includeUnresolved` keeps unresolved targets that are otherwise filtered out: on `cymbal_trace` it affects text, JSON, and graph output; on `cymbal_impact` it adds unresolved nodes to the graph output.
 - `graph`, `graphFormat` (`mermaid` | `dot` | `json`), and `graphLimit` on `cymbal_impact` and `cymbal_trace` render call graphs, matching `cymbal_importers` and `cymbal_impls`.
 
-> Note: in Cymbal `v0.14.0`, single-symbol `cymbal_trace`/`cymbal_impact` `--json` output is object-shaped (previously array-wrapped). pi-cymbal only re-pretty-prints this JSON, so the change is surfaced verbatim.
+### JSON compatibility in v0.15.0
+
+pi-cymbal preserves the CLI's JSON payloads. Single-symbol trace and impact payloads remain object-shaped.
+
+**Breaking change:** `cymbal_investigate` now uses the same envelope for single and batch requests. Iterate `payload.results.results`; each entry has a `symbol` and either a `result` or an `error`. The single-result path changes from `payload.results.result` to `payload.results.results[0].result`; batch entries move from `payload.results[]` to `payload.results.results[]`. The outer `version` remains `"0.1"`, so it cannot distinguish the old and new shapes.
+
+Empty `cymbal_changed` payloads now contain `results.results: []`, not `null`. Graph output can include `edges_truncated: true` and edges marked `indirect: true`. Changed output can include `conflicted_files`. Inspect these fields before treating the output as a complete impact report. See the [Cymbal v0.15.0 release notes](https://github.com/1broseidon/cymbal/releases/tag/v0.15.0).
 
 ### Review diffs by symbol
 
@@ -133,6 +153,8 @@ cymbal hook nudge --format=json
 ```
 
 Nudges do not block. They are hidden from TUI output. Pi may show them as notifications. Duplicate nudges are suppressed per cwd for 60s. `Read` and `Glob` suppress per tool.
+
+Glob nudges preserve the original pattern in `cymbal ls --names` suggestions. Explicit `find.path` roots other than `.` suppress the nudge. Brace patterns suggest the unfiltered inventory because Cymbal does not expand braces.
 
 ### Guidance configuration
 
@@ -178,12 +200,12 @@ Large outputs use bounded in-memory previews. Tool details include a session-man
 
 ## Development
 
-```sh
+```fish
 npm install
 npm run validate
 
-# Require the real pinned CLI smoke locally when Cymbal v0.14.0 is installed
-REQUIRE_CYMBAL=1 CYMBAL_BIN="$(command -v cymbal)" \
+# Require the real pinned CLI smoke locally when Cymbal v0.15.0 is installed
+env REQUIRE_CYMBAL=1 CYMBAL_BIN=(command -v cymbal) \
   node --import tsx --test test/cli-smoke.test.mjs
 ```
 

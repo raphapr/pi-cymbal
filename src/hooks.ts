@@ -62,9 +62,11 @@ export function buildNudgePayload(toolName: string, input: unknown): string | un
   }
 
   if (toolName === "find") {
-    const { pattern } = input;
+    const { pattern, path } = input;
     if (typeof pattern !== "string" || !pattern.trim()) return undefined;
-    return JSON.stringify({ tool_name: "Glob", tool_input: { pattern } });
+    const toolInput: { pattern: string; path?: string } = { pattern };
+    if (typeof path === "string" && path.trim()) toolInput.path = path;
+    return JSON.stringify({ tool_name: "Glob", tool_input: toolInput });
   }
 
   if (toolName === "read") {
@@ -76,21 +78,13 @@ export function buildNudgePayload(toolName: string, input: unknown): string | un
   return undefined;
 }
 
-const STALE_NUDGE_SUGGESTIONS = new Map<string, string>([["cymbal ls --names", "cymbal ls"]]);
-
-function normalizeNudgeSuggestion(suggest: string): string | undefined {
-  const trimmed = suggest.trim();
-  if (!trimmed) return undefined;
-  return STALE_NUDGE_SUGGESTIONS.get(trimmed) ?? trimmed;
-}
-
 export function parseNudgeResponse(output: string): NudgeSuggestion | undefined {
   const trimmed = output.trim();
   if (!trimmed) return undefined;
   try {
     const value = JSON.parse(trimmed) as Partial<NudgeSuggestion>;
     if (typeof value.suggest !== "string") return undefined;
-    const suggest = normalizeNudgeSuggestion(value.suggest);
+    const suggest = value.suggest.trim();
     if (!suggest) return undefined;
     return {
       suggest,

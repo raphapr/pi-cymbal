@@ -55,6 +55,26 @@ test("cymbal_map runs against the repo selected by an absolute path", async () =
   }
 });
 
+test("cymbal_map passes inventory patterns without filesystem resolution", async () => {
+  const pi = { registerTool(tool) { this.tool = tool; } };
+  registerMapTool(pi);
+  const calls = [];
+  const ctx = {
+    cwd: process.cwd(),
+    runCymbal: async (options) => {
+      calls.push(options);
+      return { command: "cymbal ls --names", args: options.args, cwd: options.cwd, stdout: '{"version":"0.1","results":[]}', stderr: "", code: 0 };
+    },
+  };
+  const result = await pi.tool.execute("inventory", { names: true, pattern: "@scope/**/*.ts", format: "json" }, undefined, undefined, ctx);
+  assert.equal(calls[0].cwd, ctx.cwd);
+  assert.deepEqual(calls[0].args, ["ls", "--names", "--json", "--", "@scope/**/*.ts"]);
+  assert.deepEqual(JSON.parse(result.content[0].text).results, []);
+  assert.equal(result.details.status, "ok");
+  await assert.rejects(() => pi.tool.execute("invalid", { names: true, path: ctx.cwd }, undefined, undefined, ctx), /names cannot be combined/);
+  assert.equal(calls.length, 1);
+});
+
 test("cymbal_map scopes absolute subdirectories to their repo root", async () => {
   const targetRepo = await makeRepo("pi-cymbal-target-");
   const sourceDir = join(targetRepo, "src", "tools");

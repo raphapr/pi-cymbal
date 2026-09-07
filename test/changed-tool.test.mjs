@@ -19,7 +19,7 @@ test("cymbal_changed checks availability before running changed", async () => {
 
   const result = await tool.execute(
     "call-1",
-    { staged: true, noTests: true, resolveScope: "family", format: "agent" },
+    { staged: true, noTests: true, testPath: ["qa/", "**/*_it.go"], resolveScope: "family", format: "agent" },
     undefined,
     undefined,
     {
@@ -43,7 +43,7 @@ test("cymbal_changed checks availability before running changed", async () => {
 
   assert.deepEqual(calls.map((call) => call.args), [
     ["changed", "--help"],
-    ["changed", "--staged", "--no-tests", "--resolve-scope", "family"],
+    ["changed", "--staged", "--no-tests", "--test-path", "qa/", "--test-path", "**/*_it.go", "--resolve-scope", "family"],
   ]);
   assert.equal(result.content[0].text, "impacted symbols");
 });
@@ -98,15 +98,14 @@ test("cymbal_changed normalizes an empty diff to not_found (agent mode, phrase o
 // verbatim and the status stays ok. (Normalization stays shape-agnostic.)
 test("cymbal_changed passes an empty-diff JSON payload through unchanged (json mode)", async () => {
   const tool = registerTool();
-  // Real v0.14.0 `cymbal changed --json` envelope on an empty diff (verified live):
-  // a top-level { results: <payload>, version } wrapper, with results: null inside.
+  // Cymbal v0.15.0 keeps the nested results array even when the diff is empty.
   const emptyPayload = JSON.stringify({
     results: {
       analyzed: 0,
       base: "working tree",
       changed_symbols: 0,
       resolve_scope: "family",
-      results: null,
+      results: [],
       truncated: false,
     },
     version: "0.1",
@@ -139,5 +138,5 @@ test("cymbal_changed passes an empty-diff JSON payload through unchanged (json m
   const payload = JSON.parse(result.content[0].text);
   assert.equal(payload.version, "0.1");
   assert.equal(payload.results.changed_symbols, 0);
-  assert.equal(payload.results.results, null);
+  assert.deepEqual(payload.results.results, []);
 });

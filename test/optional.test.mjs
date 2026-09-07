@@ -126,6 +126,28 @@ test("optional tools pass command-specific parameters", async () => {
   ]);
 });
 
+test("investigate preserves the stable v0.15.0 envelope for single and batch results", async () => {
+  const pi = { tools: {}, registerTool(tool) { this.tools[tool.name] = tool; } };
+  registerOptionalTools(pi);
+  const success = { symbol: "seed", resolve_scope: "family", result: { symbol: { name: "seed" }, investigate_kind: "function", source: "function seed() {}" } };
+  const missing = { symbol: "missing", error: "not found" };
+  for (const entries of [[success], [missing], [success, missing]]) {
+    const symbols = entries.map((entry) => entry.symbol);
+    const payload = { version: "0.1", results: { symbols, resolve_scope: "family", results: entries } };
+    const params = { ...(symbols.length === 1 ? { symbol: symbols[0] } : { symbols }), format: "json" };
+    const result = await pi.tools.cymbal_investigate.execute("investigate", params, undefined, undefined, {
+      cwd: process.cwd(),
+      runCymbal: async (options) => ({
+        command: "cymbal investigate", args: options.args, cwd: options.cwd,
+        stdout: options.args[1] === "--help" ? "usage" : JSON.stringify(payload), stderr: "", code: 0,
+      }),
+    });
+    assert.deepEqual(JSON.parse(result.content[0].text), payload);
+    assert.equal(result.details.parsedJson, true);
+    assert.equal(result.details.status, "ok");
+  }
+});
+
 test("optional tools return structured unsupported results", async () => {
   clearAvailabilityCache();
   const pi = { tools: {}, registerTool(tool) { this.tools[tool.name] = tool; } };

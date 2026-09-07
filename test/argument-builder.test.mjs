@@ -41,6 +41,23 @@ test("buildMapArgs rejects repos combinations", () => {
   assert.throws(() => buildMapArgs({ repos: true, path: "." }), /repos cannot be combined/);
 });
 
+test("buildMapArgs lists inventory without tree defaults and preserves patterns", () => {
+  assert.deepEqual(buildMapArgs({ names: true }), ["ls", "--names"]);
+  assert.deepEqual(buildMapArgs({ names: true, pattern: "**/*.ts", lang: "typescript", format: "json" }), ["ls", "--names", "--lang", "typescript", "--json", "--", "**/*.ts"]);
+  assert.deepEqual(buildMapArgs({ names: true, pattern: "@scope/" }), ["ls", "--names", "--", "@scope/"]);
+  assert.deepEqual(buildMapArgs({ names: true, pattern: "--help", lang: "--json" }), ["ls", "--names", "--lang=--json", "--", "--help"]);
+  assert.equal(Check(MapParams, { names: true, pattern: "**/*.ts", lang: "typescript" }), true);
+});
+
+test("buildMapArgs rejects incompatible inventory options", () => {
+  for (const options of [{ path: "." }, { depth: 0 }, { stats: true }, { stats: false }, { repos: true }]) {
+    assert.throws(() => buildMapArgs({ names: true, ...options }), /names cannot be combined/);
+  }
+  for (const options of [{ pattern: "src" }, { lang: "go" }, { names: false, pattern: "src" }, { repos: true, lang: "go" }]) {
+    assert.throws(() => buildMapArgs(options), /require names: true/);
+  }
+});
+
 test("buildStructureArgs maps limit", () => {
   assert.deepEqual(buildStructureArgs({ limit: 5, format: "json" }), ["structure", "--limit", "5", "--json"]);
 });
@@ -148,6 +165,22 @@ test("buildImpactArgs maps no-tests, resolve-scope, and graph family", () => {
     buildImpactArgs({ symbol: "handleAuth", noTests: true, resolveScope: "family", graph: true, graphFormat: "dot", graphLimit: 25, includeUnresolved: true }),
     ["impact", "--no-tests", "--resolve-scope", "family", "--graph", "--graph-format", "dot", "--graph-limit", "25", "--include-unresolved", "--", "handleAuth"],
   );
+});
+
+test("impact and changed map repeated test-path patterns safely", () => {
+  assert.deepEqual(buildImpactArgs({ symbol: "x", testPath: "qa/" }), ["impact", "--test-path", "qa/", "--", "x"]);
+  assert.deepEqual(buildChangedArgs({ testPath: "qa/" }), ["changed", "--test-path", "qa/"]);
+  const flags = ["--no-tests", "--test-path", "qa/", "--test-path", "**/*_it.go", "--test-path=--help"];
+  const options = { noTests: true, testPath: ["qa/", "**/*_it.go", "--help"] };
+  assert.deepEqual(buildImpactArgs({ symbol: "x", graph: true, ...options }), ["impact", ...flags, "--graph", "--graph-format", "json", "--", "x"]);
+  assert.deepEqual(buildChangedArgs(options), ["changed", ...flags]);
+  for (const schema of [ImpactParams, ChangedParams]) {
+    assert.equal(Check(schema, { testPath: "qa/" }), true);
+    assert.equal(Check(schema, options), true);
+    for (const testPath of [[], [1], Array(33).fill("qa/"), 42]) {
+      assert.equal(Check(schema, { testPath }), false);
+    }
+  }
 });
 
 test("buildTraceArgs default call is unchanged (regression)", () => {

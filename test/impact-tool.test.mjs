@@ -14,7 +14,7 @@ test("cymbal_impact passes batch symbols and context without graph flags", async
 
   await pi.tool.execute(
     "call-1",
-    { symbol: "handleAuth", symbols: ["saveAuth"], context: 2, depth: 3, limit: 10, format: "agent" },
+    { symbol: "handleAuth", symbols: ["saveAuth"], context: 2, depth: 3, limit: 10, testPath: "qa/", format: "agent" },
     undefined,
     undefined,
     {
@@ -33,7 +33,7 @@ test("cymbal_impact passes batch symbols and context without graph flags", async
     },
   );
 
-  assert.deepEqual(calls[0].args, ["impact", "--context", "2", "--depth", "3", "--limit", "10", "--", "handleAuth", "saveAuth"]);
+  assert.deepEqual(calls[0].args, ["impact", "--context", "2", "--depth", "3", "--limit", "10", "--test-path", "qa/", "--", "handleAuth", "saveAuth"]);
   assert.equal(calls[0].args.includes("--graph"), false);
   assert.equal(calls[0].args.includes("--include-unresolved"), false);
 });
