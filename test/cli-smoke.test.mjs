@@ -4,7 +4,11 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { ProcessError } from "../src/cymbal.ts";
 import { buildNudgePayload, parseNudgeResponse } from "../src/hooks.ts";
+import { registerImpactTool } from "../src/tools/impact.ts";
+import { registerImplsTool } from "../src/tools/impls.ts";
+import { clearAvailabilityCache, registerOptionalTools } from "../src/tools/optional.ts";
 import {
   buildChangedArgs,
   buildContextArgs,
@@ -27,10 +31,10 @@ const cymbal = process.env.CYMBAL_BIN ?? "cymbal";
 const required = process.env.REQUIRE_CYMBAL === "1";
 const version = spawnSync(cymbal, ["version"], { encoding: "utf8" });
 const available = version.status === 0;
-const exactVersion = available && version.stdout.split(/\r?\n/, 1)[0] === "cymbal v0.15.0";
+const exactVersion = available && version.stdout.split(/\r?\n/, 1)[0] === "cymbal v0.17.0";
 
 if (required && !exactVersion) {
-  throw new Error(`REQUIRE_CYMBAL=1 but ${cymbal} is not Cymbal v0.15.0: ${version.error?.message ?? version.stdout ?? version.stderr}`);
+  throw new Error(`REQUIRE_CYMBAL=1 but ${cymbal} is not Cymbal v0.17.0: ${version.error?.message ?? version.stdout ?? version.stderr}`);
 }
 
 function run(args, options = {}) {
@@ -52,8 +56,8 @@ function containsSymbol(value, name, relPath) {
   return Object.values(value).some((entry) => containsSymbol(entry, name, relPath));
 }
 
-test("pinned Cymbal version is v0.15.0", { skip: !exactVersion }, () => {
-  assert.equal(version.stdout.split(/\r?\n/, 1)[0], "cymbal v0.15.0");
+test("pinned Cymbal version is v0.17.0", { skip: !exactVersion }, () => {
+  assert.equal(version.stdout.split(/\r?\n/, 1)[0], "cymbal v0.17.0");
 });
 
 test("every registered Cymbal command exposes help", { skip: !exactVersion }, () => {
@@ -103,7 +107,7 @@ test("leading-dash operands and flag values do not trigger Cymbal options", { sk
     [buildDiffArgs({ symbol: "--help" }), 1, /--help/],
     [buildSearchArgs({ query: "--help", text: true }), 0, /query: "--help"/],
     [buildChangedArgs({ base: "--help" }), 1, /invalid base ref "--help"/],
-    [buildImplsArgs({ of: "--help", format: "json" }), 0, /--help/],
+    [buildImplsArgs({ of: "--help", format: "json" }), 1, /symbol not found: --help/],
   ];
   for (const [args, expectedStatus, expected] of commands) {
     const result = run(args);
@@ -120,7 +124,7 @@ test("cymbal search accepts quoted hyphenated symbol queries", { skip: !exactVer
   assert.doesNotMatch(result.stderr, /no such column/);
 });
 
-test("Cymbal v0.15.0 contracts in an isolated repository", { skip: !exactVersion }, async (t) => {
+test("Cymbal v0.17.0 contracts in an isolated repository", { skip: !exactVersion }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), "pi-cymbal-contract-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const cwd = join(root, "repo");
@@ -138,9 +142,9 @@ test("Cymbal v0.15.0 contracts in an isolated repository", { skip: !exactVersion
     assertSuccess(spawnSync("git", args, { cwd, env, encoding: "utf8" }));
   }
   assertSuccess(run(buildIndexArgs({}), { cwd, env }));
-  const json = (args) => {
+  const json = (args, status = 0) => {
     const result = run(args, { cwd, env });
-    assertSuccess(result);
+    assert.equal(result.status, status, result.stderr || result.stdout);
     return JSON.parse(result.stdout);
   };
 
@@ -154,15 +158,56 @@ test("Cymbal v0.15.0 contracts in an isolated repository", { skip: !exactVersion
   await t.test("investigate has one envelope for single, batch, and missing symbols", () => {
     for (const symbols of [["seed"], ["missingCymbalSymbol"], ["seed", "missingCymbalSymbol"]]) {
       const params = symbols.length === 1 ? { symbol: symbols[0] } : { symbols };
-      const payload = json(buildInvestigateArgs({ ...params, format: "json" }));
+      const payload = json(buildInvestigateArgs({ ...params, format: "json" }), symbols.includes("missingCymbalSymbol") ? 1 : 0);
       assert.equal(payload.version, "0.1");
       assert.deepEqual(payload.results.symbols, symbols);
       assert.equal(payload.results.resolve_scope, "family");
       assert.deepEqual(payload.results.results.map((entry) => entry.symbol), symbols);
       for (const entry of payload.results.results) {
         if (entry.symbol === "seed") assert.equal(entry.result.symbol.name, "seed");
-        else assert.equal(entry.error, "not found");
+        else assert.equal(entry.error, "symbol not found: missingCymbalSymbol");
       }
+    }
+  });
+
+  await t.test("empty results exit zero and missing batch names keep resolved output", () => {
+    const impact = json(buildImpactArgs({ symbol: "productionCaller", format: "json" })).results;
+    assert.equal(impact.total_callers, 0);
+    assert.deepEqual(impact.results, []);
+    assert.deepEqual(json(buildTraceArgs({ symbol: "seed", format: "json" })).results.results, []);
+
+    const partial = run(buildImpactArgs({ symbols: ["seed", "missingCymbalSymbol"], format: "json" }), { cwd, env });
+    assert.equal(partial.status, 1);
+    assert.deepEqual(JSON.parse(partial.stdout).results.symbols, ["seed"]);
+    assert.match(partial.stderr, /symbol not found: missingCymbalSymbol/);
+
+    const missing = run(buildImpactArgs({ symbol: "missingCymbalSymbol" }), { cwd, env });
+    assert.equal(missing.status, 1);
+    assert.equal(missing.stdout, "");
+    assert.match(missing.stderr, /symbol not found: missingCymbalSymbol/);
+  });
+
+  await t.test("tool statuses distinguish partial batches from all-missing names", async () => {
+    clearAvailabilityCache();
+    const pi = { tools: {}, registerTool(tool) { this.tools[tool.name] = tool; } };
+    registerImpactTool(pi);
+    registerImplsTool(pi);
+    registerOptionalTools(pi);
+    const runCymbal = async (options) => {
+      const result = run(options.args, { cwd: options.cwd, env });
+      const shaped = { command: `cymbal ${options.args.join(" ")}`, args: options.args, cwd: options.cwd, stdout: result.stdout, stderr: result.stderr, code: result.status };
+      if (result.status !== 0) throw new ProcessError(`cymbal failed (exit ${result.status})`, shaped);
+      return shaped;
+    };
+    for (const [tool, params, status] of [
+      ["cymbal_impact", { symbols: ["seed", "missingCymbalSymbol"], format: "json" }, "partial"],
+      ["cymbal_impact", { symbols: ["seed", "missingCymbalSymbol"] }, "partial"],
+      ["cymbal_impact", { symbol: "productionCaller" }, "ok"],
+      ["cymbal_investigate", { symbol: "missingCymbalSymbol", format: "json" }, "not_found"],
+      ["cymbal_impls", { symbols: ["missingCymbalSymbol", "otherMissingSymbol"], format: "json" }, "not_found"],
+    ]) {
+      const result = await pi.tools[tool].execute("call-1", params, undefined, undefined, { cwd, runCymbal });
+      assert.equal(result.details.status, status, `${tool} ${JSON.stringify(params)}`);
     }
   });
 

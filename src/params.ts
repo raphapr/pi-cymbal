@@ -67,9 +67,11 @@ export const ShowParams = Type.Object({
   exclude: Type.Optional(PathValues("Exclude path filter.")),
   format: FormatParam,
 });
+// Cymbal v0.17.0 resolves refs/impact/trace/impls by bare name; dotted names report not found.
+const BARE_NAME = "Use the bare name (Run, not Worker.Run).";
 export const RefsParams = Type.Object({
-  symbol: Type.Optional(Type.String({ description: "Target symbol." })),
-  symbols: Type.Optional(BatchStrings("Additional target symbols.")),
+  symbol: Type.Optional(Type.String({ description: `Target symbol. ${BARE_NAME}` })),
+  symbols: Type.Optional(BatchStrings(`Additional target symbols. ${BARE_NAME}`)),
   limit: Type.Optional(ResultLimit("Maximum results.")),
   importers: Type.Optional(Type.Boolean({ description: "Include importers." })),
   impact: Type.Optional(Type.Boolean({ description: "Impact mode." })),
@@ -81,8 +83,8 @@ export const RefsParams = Type.Object({
   format: FormatParam,
 });
 export const ImpactParams = Type.Object({
-  symbol: Type.Optional(Type.String({ description: "Target symbol." })),
-  symbols: Type.Optional(BatchStrings("Additional target symbols.")),
+  symbol: Type.Optional(Type.String({ description: `Target symbol. ${BARE_NAME}` })),
+  symbols: Type.Optional(BatchStrings(`Additional target symbols. ${BARE_NAME}`)),
   context: Type.Optional(ContextLines("Lines of context around each call site.")),
   depth: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: "Impact depth." })),
   limit: Type.Optional(ResultLimit("Maximum results.")),
@@ -106,8 +108,8 @@ export const ImportersParams = Type.Object({
   format: FormatParam,
 });
 export const ImplsParams = Type.Object({
-  symbol: Type.Optional(Type.String({ description: "Symbol to query." })),
-  symbols: Type.Optional(BatchStrings("Additional symbols to query.")),
+  symbol: Type.Optional(Type.String({ description: `Symbol to query. ${BARE_NAME}` })),
+  symbols: Type.Optional(BatchStrings(`Additional symbols to query. ${BARE_NAME}`)),
   of: Type.Optional(Type.String({ description: "Find implementations of this symbol." })),
   lang: Type.Optional(Type.String({ description: "Filter by language." })),
   path: Type.Optional(PathValues("Include path filter.")),
@@ -128,8 +130,8 @@ export const InvestigateParams = Type.Object({
   format: FormatParam,
 });
 export const TraceParams = Type.Object({
-  symbol: Type.Optional(Type.String({ description: "Target symbol." })),
-  symbols: Type.Optional(BatchStrings("Additional target symbols.")),
+  symbol: Type.Optional(Type.String({ description: `Target symbol. ${BARE_NAME}` })),
+  symbols: Type.Optional(BatchStrings(`Additional target symbols. ${BARE_NAME}`)),
   depth: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: "Trace depth." })),
   kinds: Type.Optional(Type.String({ description: "Comma-separated ref kinds to follow." })),
   limit: Type.Optional(ResultLimit("Maximum results per symbol.")),

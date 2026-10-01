@@ -210,7 +210,7 @@ test("optional trace treats default graph output as JSON", async () => {
   assert.deepEqual(JSON.parse(result.content[0].text), { nodes: [] });
 });
 
-test("optional tools normalize no-result JSON output", async () => {
+test("optional tools recover missing-symbol JSON output", async () => {
   const pi = {
     tools: {},
     registerTool(tool) {
@@ -231,14 +231,14 @@ test("optional tools normalize no-result JSON output", async () => {
         if (options.args[0] === "trace" && options.args[1] === "--help") {
           return { command: "cymbal trace --help", args: options.args, cwd: options.cwd, stdout: "usage", stderr: "", code: 0 };
         }
-        return {
+        throw new ProcessError("cymbal trace failed", {
           command: `cymbal ${options.args.join(" ")}`,
           args: options.args,
           cwd: options.cwd,
-          stdout: "No outgoing calls found for 'definitely_missing_symbol_zzzz'.\n",
-          stderr: "",
-          code: 0,
-        };
+          stdout: "",
+          stderr: "Error: symbol not found: definitely_missing_symbol_zzzz\n",
+          code: 1,
+        });
       },
     },
   );
@@ -248,7 +248,7 @@ test("optional tools normalize no-result JSON output", async () => {
   assert.equal(JSON.parse(result.content[0].text).status, "not_found");
 });
 
-test("optional tools normalize no-result agent output", async () => {
+test("optional tools recover missing-symbol agent output", async () => {
   const pi = {
     tools: {},
     registerTool(tool) {
@@ -269,17 +269,45 @@ test("optional tools normalize no-result agent output", async () => {
         if (options.args[0] === "trace" && options.args[1] === "--help") {
           return { command: "cymbal trace --help", args: options.args, cwd: options.cwd, stdout: "usage", stderr: "", code: 0 };
         }
-        return {
+        throw new ProcessError("cymbal trace failed", {
           command: `cymbal ${options.args.join(" ")}`,
           args: options.args,
           cwd: options.cwd,
-          stdout: "No outgoing calls found for 'definitely_missing_symbol_zzzz'.\n",
-          stderr: "",
-          code: 0,
-        };
+          stdout: "",
+          stderr: "Error: symbol not found: definitely_missing_symbol_zzzz\n",
+          code: 1,
+        });
       },
     },
   );
+
+  assert.equal(result.details.status, "not_found");
+});
+
+test("investigate reports not_found when the JSON envelope lists only errors", async () => {
+  const pi = {
+    tools: {},
+    registerTool(tool) {
+      this.tools[tool.name] = tool;
+    },
+  };
+  registerOptionalTools(pi);
+  const payload = { results: { resolve_scope: "family", symbols: ["nope"], results: [{ symbol: "nope", error: "symbol not found: nope" }] }, version: "0.1" };
+
+  const result = await pi.tools.cymbal_investigate.execute("call-1", { symbol: "nope", format: "json" }, undefined, undefined, {
+    cwd: process.cwd(),
+    runCymbal: async (options) => {
+      if (options.args[1] === "--help") return { command: "cymbal investigate --help", args: options.args, cwd: options.cwd, stdout: "usage", stderr: "", code: 0 };
+      throw new ProcessError("cymbal investigate failed", {
+        command: `cymbal ${options.args.join(" ")}`,
+        args: options.args,
+        cwd: options.cwd,
+        stdout: `${JSON.stringify(payload)}\n`,
+        stderr: "Error: symbol not found: nope\n",
+        code: 1,
+      });
+    },
+  });
 
   assert.equal(result.details.status, "not_found");
 });

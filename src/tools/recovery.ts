@@ -28,11 +28,12 @@ function isNotFoundOutput(output: string): boolean {
 
   return (
     /no results found/i.test(output) ||
+    // Cymbal <= v0.16 reported empty refs/impls/impact/trace with these messages.
     /no references found/i.test(output) ||
     /no implementors found/i.test(output) ||
-    /no importers found/i.test(output) ||
     /no callers found/i.test(output) ||
     /no outgoing calls found/i.test(output) ||
+    /no importers found/i.test(output) ||
     /no changed symbols found/i.test(output) ||
     /file not found/i.test(output) ||
     /symbol not found/i.test(output) ||
@@ -78,6 +79,36 @@ export function normalizeEmptyCymbalNotFound(result: RunCymbalResult, format?: O
   };
 }
 
+// Cymbal v0.17.0 batches print results for resolved names and exit 1 with
+// `symbol not found: X` on stderr for the rest. Keep the resolved output.
+function partialBatchResult(result: RunCymbalResult, format?: OutputFormat): RunCymbalResult | undefined {
+  if (!result.stdout.trim() || !/symbol not found/i.test(result.stderr) || /no requested symbol or file resolved/i.test(result.stderr)) return undefined;
+
+  const lines = diagnostics(result.stderr);
+  const partial = { ...result, stderr: "", status: "partial" as const, diagnostics: lines };
+  if (format !== "json") return { ...partial, stdout: `${result.stdout.replace(/\n*$/, "\n")}\n${lines.join("\n")}\n` };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(result.stdout);
+  } catch {
+    // Truncated or malformed JSON: keep stdout so formatJson can report and spill it.
+    return partial;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return partial;
+  if (everyEntryErrored((parsed as { results?: unknown }).results)) return undefined;
+  return { ...partial, stdout: `${JSON.stringify({ ...parsed, status: "partial", diagnostics: lines })}\n` };
+}
+
+// investigate lists entries at results.results[]; impls keys entries by name.
+// Each missing name carries an `error`, so all-errored means nothing resolved.
+function everyEntryErrored(results: unknown): boolean {
+  if (!results || typeof results !== "object") return false;
+  const nested = (results as { results?: unknown }).results;
+  const entries = Array.isArray(nested) ? nested : Object.values(results);
+  return entries.length > 0 && entries.every((entry) => Boolean(entry && typeof entry === "object" && "error" in entry));
+}
+
 export function recoverCymbalNotFound(error: unknown, options: RecoverCymbalOptions): RunCymbalResult | undefined {
   if (!(error instanceof ProcessError)) return undefined;
 
@@ -85,6 +116,9 @@ export function recoverCymbalNotFound(error: unknown, options: RecoverCymbalOpti
 
   const output = visibleOutput(error.result);
   if (isOutsideRepoOutput(output) || !isNotFoundOutput(output)) return undefined;
+
+  const partial = partialBatchResult(error.result, options.format);
+  if (partial) return partial;
 
   const requestedTarget = options.requestedTarget ?? options.args[1];
   const suggestions = requestedTarget ? suggestNearbyFiles(options.cwd, requestedTarget) : [];

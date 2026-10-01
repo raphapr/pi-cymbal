@@ -102,7 +102,7 @@ test("registerCymbalTool returns JSON for empty no-result output", async () => {
     args: options.args,
     cwd: options.cwd,
     stdout: "",
-    stderr: "No references found for 'definitely_missing_symbol_zzzz'.\n",
+    stderr: "No changed symbols found.\n",
     code: 0,
   }));
 
@@ -150,4 +150,96 @@ test("registerCymbalTool recovers importers no-result errors", async () => {
   assert.equal(result.details.status, "not_found");
   assert.equal(result.details.parsedJson, true);
   assert.equal(JSON.parse(result.content[0].text).status, "not_found");
+});
+
+function partialBatchFailure(stdout) {
+  return async (options) => {
+    throw new ProcessError("cymbal impact failed", {
+      command: `cymbal ${options.args.join(" ")}`,
+      args: options.args,
+      cwd: options.cwd,
+      stdout,
+      stderr: "Error: symbol not found: nope\n",
+      code: 1,
+    });
+  };
+}
+
+test("registerCymbalTool keeps resolved agent output when a batch name is missing", async () => {
+  const stdout = "---\nsymbol: lonely\ntotal_callers: 0\n---\n";
+  const { pi, ctx } = registerFakeTool(partialBatchFailure(stdout), { command: "impact" });
+
+  const result = await pi.tool.execute("call-1", { target: "lonely" }, undefined, undefined, ctx);
+
+  assert.equal(result.details.status, "partial");
+  assert.deepEqual(result.details.diagnostics, ["Error: symbol not found: nope"]);
+  assert.equal(result.content[0].text, `${stdout}\nError: symbol not found: nope\n`);
+});
+
+test("registerCymbalTool keeps resolved JSON output when a batch name is missing", async () => {
+  const payload = { results: { symbols: ["lonely"], total_callers: 0, results: [] }, version: "0.1" };
+  const { pi, ctx } = registerFakeTool(partialBatchFailure(`${JSON.stringify(payload)}\n`), { command: "impact" });
+
+  const result = await pi.tool.execute("call-1", { target: "lonely", format: "json" }, undefined, undefined, ctx);
+
+  assert.equal(result.details.status, "partial");
+  assert.equal(result.details.parsedJson, true);
+  assert.deepEqual(JSON.parse(result.content[0].text), { ...payload, status: "partial", diagnostics: ["Error: symbol not found: nope"] });
+});
+
+test("registerCymbalTool reports not_found when every batch name is missing", async () => {
+  const { pi, ctx } = registerFakeTool(partialBatchFailure(""), { command: "impact" });
+
+  const result = await pi.tool.execute("call-1", { target: "nope", format: "json" }, undefined, undefined, ctx);
+
+  assert.equal(result.details.status, "not_found");
+});
+
+test("registerCymbalTool passes zero-count results through", async () => {
+  const stdout = "---\nsymbol: lonely\nref_count: 0\n---\n";
+  const { pi, ctx } = registerFakeTool(async (options) => ({ command: "cymbal refs", args: options.args, cwd: options.cwd, stdout, stderr: "", code: 0 }));
+
+  const result = await pi.tool.execute("call-1", { target: "lonely" }, undefined, undefined, ctx);
+
+  assert.equal(result.details.status, "ok");
+  assert.equal(result.content[0].text, stdout);
+});
+
+test("registerCymbalTool reports not_found when every JSON entry errored", async () => {
+  const payload = { results: { nope: { error: "symbol not found: nope" }, zip: { error: "symbol not found: zip" } }, version: "0.1" };
+  const { pi, ctx } = registerFakeTool(partialBatchFailure(`${JSON.stringify(payload)}\n`), { command: "impls" });
+
+  const result = await pi.tool.execute("call-1", { target: "nope", format: "json" }, undefined, undefined, ctx);
+
+  assert.equal(result.details.status, "not_found");
+});
+
+test("registerCymbalTool keeps unparsable JSON from a partial batch", async () => {
+  const { pi, ctx } = registerFakeTool(partialBatchFailure('{"results": {"symbols": ["lonely"]'), { command: "impact" });
+
+  const result = await pi.tool.execute("call-1", { target: "lonely", format: "json" }, undefined, undefined, ctx);
+
+  assert.equal(result.details.status, "error");
+  assert.equal(result.details.error.code, "malformed_cymbal_json");
+  assert.match(JSON.parse(result.content[0].text).preview, /lonely/);
+});
+
+test("registerCymbalTool still recovers pre-v0.17 empty-result errors", async () => {
+  const { pi, ctx } = registerFakeTool(
+    async (options) => {
+      throw new ProcessError("cymbal impact failed", {
+        command: `cymbal ${options.args.join(" ")}`,
+        args: options.args,
+        cwd: options.cwd,
+        stdout: "",
+        stderr: "Error: no callers found for 'lonely'\n",
+        code: 1,
+      });
+    },
+    { command: "impact" },
+  );
+
+  const result = await pi.tool.execute("call-1", { target: "lonely", format: "json" }, undefined, undefined, ctx);
+
+  assert.equal(result.details.status, "not_found");
 });

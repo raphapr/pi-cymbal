@@ -32,7 +32,9 @@ Guidelines:
 - Use `cymbal_diff` when reviewing changes to a specific local symbol.
 - Use `cymbal_changed` to review what your current diff affects before refactors or PRs.
 - Use `testPath` on `cymbal_impact` or `cymbal_changed` to add repo-specific test patterns. These affect classification and counts even without `noTests`; impact graphs with `noTests` retain production callers through indirect edges.
-- With Cymbal v0.15.0, iterate `cymbal_investigate` JSON at `results.results[]` for single and batch requests. Read each entry's `symbol` and `result` or `error`.
+- With Cymbal v0.17.0, iterate `cymbal_investigate` JSON at `results.results[]` for single and batch requests. Read each entry's `symbol` and `result` or `error`.
+- Pass bare names to `cymbal_refs`, `cymbal_impact`, `cymbal_trace`, and `cymbal_impls` (`Run`, not `Worker.Run`); qualified names work only in `cymbal_show`.
+- A zero count (`total_callers: 0`, `ref_count: 0`, `implementor_count: 0`) is a real answer. `status: "partial"` means some batch names were not found; read the `symbol not found` diagnostics.
 - Check native JSON completeness fields such as `edges_truncated` and `conflicted_files`. Empty `cymbal_changed` JSON uses a nested `results: []`.
 - Use `cymbal_context` for a focused symbol bundle when supported by the installed Cymbal version.
 - Use `cymbal_index` only when a stale index is suspected or the user explicitly asks to refresh indexing; do not use it for routine navigation because Cymbal auto-indexes repositories.
