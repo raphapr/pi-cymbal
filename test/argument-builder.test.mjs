@@ -90,8 +90,9 @@ test("buildSearchArgs maps text search", () => {
   assert.deepEqual(buildSearchArgs({ query: "needle", text: true, path: "src", format: "json" }), ["search", "--text", "--path", "src", "--json", "--", "needle"]);
 });
 
-test("buildSearchArgs joins text search query words", () => {
-  assert.deepEqual(buildSearchArgs({ query: "needle", queries: ["other"], text: true }), ["search", "--text", "--", "needle other"]);
+test("buildSearchArgs matches any text search query", () => {
+  assert.deepEqual(buildSearchArgs({ query: "needle", queries: ["other|more"], text: true }), ["search", "--text", "--", "(?:needle)|(?:other|more)"]);
+  assert.deepEqual(buildSearchArgs({ queries: ["needle words"], text: true }), ["search", "--text", "--", "needle words"]);
 });
 
 test("buildSearchArgs maps ignoreCase as exact unescaped symbol search", () => {

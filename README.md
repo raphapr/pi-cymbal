@@ -106,6 +106,8 @@ The inventory includes only indexed files, after skip rules. Use Pi's `find` for
 
 Use `cymbal_search`, `cymbal_outline`, and `cymbal_show` instead of broad grep/read loops.
 
+With `text: true`, each query is a case-sensitive Go regex matched per line. Prefix `(?i)` to ignore case. Multiple `queries` match any of them, for example `{ "queries": ["auth0", "recipient"], "text": true }` searches `(?:auth0)|(?:recipient)`. Empty text searches add a short hint to the result.
+
 ### Check relationships before refactors
 
 Use `cymbal_refs`, `cymbal_impact`, `cymbal_importers`, and `cymbal_impls` before changing exported symbols or imports.

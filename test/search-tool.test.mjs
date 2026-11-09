@@ -135,6 +135,20 @@ test("noResultsSearchResult converts Cymbal no-result exits into visible output"
   assert.equal(result?.code, 1);
 });
 
+test("noResultsSearchResult adds a regex hint for empty text searches", () => {
+  const error = new ProcessError("cymbal search --text missing failed (exit 1)", {
+    command: "cymbal search --text missing",
+    args: ["search", "--text", "missing"],
+    cwd: "/repo/pi-cymbal",
+    stdout: "",
+    stderr: "Error: no results found for 'missing'\n",
+    code: 1,
+  });
+
+  assert.match(noResultsSearchResult(error, "agent", true)?.stdout ?? "", /no results found for 'missing'\n\nText search matches a case-sensitive Go regex/);
+  assert.deepEqual(JSON.parse(noResultsSearchResult(error, "json", true)?.stdout ?? ""), { results: [] });
+});
+
 test("noResultsSearchResult returns JSON output for JSON callers", () => {
   const error = new ProcessError("cymbal search missing --json failed (exit 1)", {
     command: "cymbal search missing --json",

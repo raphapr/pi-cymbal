@@ -40,9 +40,9 @@ export const IndexParams = Type.Object({
   format: FormatParam,
 });
 export const SearchParams = Type.Object({
-  query: Type.Optional(Type.String({ description: "Symbol query, or text query when text is true." })),
-  queries: Type.Optional(BatchStrings("Additional symbol queries.")),
-  text: Type.Optional(Type.Boolean({ description: "Use Cymbal full-text search." })),
+  query: Type.Optional(Type.String({ description: "Symbol query, or a case-sensitive Go regex matched per line when text is true. Prefix (?i) to ignore case." })),
+  queries: Type.Optional(BatchStrings("Additional queries. Symbol mode searches each independently; text mode matches any of them.")),
+  text: Type.Optional(Type.Boolean({ description: "Full-text regex search over indexed files. Spaces match literally; not a keyword or semantic search." })),
   exact: Type.Optional(Type.Boolean({ description: "Exact symbol match." })),
   ignoreCase: Type.Optional(Type.Boolean({ description: "Case-insensitive exact symbol match. Implies exact matching and is not supported with text search." })),
   kind: Type.Optional(Type.String({ description: "Filter by symbol kind." })),
@@ -397,6 +397,11 @@ function collectSymbols(symbol?: string, symbols?: string[]): string[] {
   return boundedOperands("symbol or symbols", [symbol, ...(symbols ?? [])]);
 }
 
+// Cymbal joins text-mode words into one regex (`a b`); agents mean `queries` as alternatives.
+function textSearchPattern(queries: string[]): string {
+  return queries.length === 1 ? queries[0] : queries.map((query) => `(?:${query})`).join("|");
+}
+
 function escapeSymbolSearchQuery(query: string): string {
   if (!/[^A-Za-z0-9_\s]/.test(query)) return query;
   if (query.startsWith('"') && query.endsWith('"')) return query;
@@ -474,7 +479,7 @@ export function buildSearchArgs(params: SearchArgs): string[] {
   pushRepeatedPaths(args, "--path", params.path);
   pushRepeatedPaths(args, "--exclude", params.exclude);
   addJson(args, params.format);
-  if (params.text) args.push("--", queries.join(" "));
+  if (params.text) args.push("--", textSearchPattern(queries));
   else args.push("--", ...(exactSymbolSearch ? queries : queries.map(escapeSymbolSearchQuery)));
   return args;
 }

@@ -28,7 +28,9 @@ export function resolveSearchRun(params: SearchArgs, cwd: string, fs?: RepoRootF
   });
 }
 
-export function noResultsSearchResult(error: unknown, format?: "agent" | "json"): RunCymbalResult | undefined {
+const TEXT_SEARCH_HINT = "Text search matches a case-sensitive Go regex on a single line. Try (?i), fewer words, or alternatives in `queries`.";
+
+export function noResultsSearchResult(error: unknown, format?: "agent" | "json", text = false): RunCymbalResult | undefined {
   if (!(error instanceof ProcessError)) return undefined;
 
   if (isNoRepoDetected(error.result)) return undefined;
@@ -38,7 +40,7 @@ export function noResultsSearchResult(error: unknown, format?: "agent" | "json")
 
   return {
     ...error.result,
-    stdout: format === "json" ? '{"results":[]}\n' : visibleOutput || "No results found.\n",
+    stdout: format === "json" ? '{"results":[]}\n' : `${visibleOutput || "No results found.\n"}${text ? `\n${TEXT_SEARCH_HINT}\n` : ""}`,
     stderr: "",
     status: "not_found",
     diagnostics: visibleOutput
@@ -65,7 +67,7 @@ export function registerSearchTool(pi: ExtensionAPI): void {
         try {
           result = await runCymbal({ cwd: run.cwd, args, signal });
         } catch (error) {
-          const noResults = noResultsSearchResult(error, params.format);
+          const noResults = noResultsSearchResult(error, params.format, params.text);
           if (!noResults) throw error;
           result = noResults;
         }
