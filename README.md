@@ -20,7 +20,7 @@ Pi has file and shell tools. `pi-cymbal` adds Cymbal tools so agents can inspect
 ## Requirements
 
 - Pi on Node.js `>=22.19.0`
-- Cymbal `v0.17.0`. CI pins this version for the documented tool and flag surface. Other versions may expose a different command contract.
+- Cymbal `v0.18.0`. CI pins this version for the documented tool and flag surface. Other versions may expose a different command contract.
 - Cymbal binary on `PATH`, or `CYMBAL_BIN` set
 
 ```sh
@@ -124,7 +124,7 @@ Use `cymbal_changed` to see the changed symbols of your current git diff plus th
 - `includeUnresolved` keeps unresolved targets that are otherwise filtered out: on `cymbal_trace` it affects text, JSON, and graph output; on `cymbal_impact` it adds unresolved nodes to the graph output.
 - `graph`, `graphFormat` (`mermaid` | `dot` | `json`), and `graphLimit` on `cymbal_impact` and `cymbal_trace` render call graphs, matching `cymbal_importers` and `cymbal_impls`.
 
-### Results in v0.17.0
+### Results since v0.17.0
 
 An empty answer is a result, not an error. `cymbal_impact`, `cymbal_trace`, `cymbal_refs`, and `cymbal_impls` return their usual header with a zero count (`total_callers: 0`, `ref_count: 0`, `implementor_count: 0`) or an empty `results` list in JSON. A name the index has never seen returns `status: "not_found"`.
 
@@ -214,7 +214,7 @@ Large outputs use bounded in-memory previews. Tool details include a session-man
 npm install
 npm run validate
 
-# Require the real pinned CLI smoke locally when Cymbal v0.17.0 is installed
+# Require the real pinned CLI smoke locally when Cymbal v0.18.0 is installed
 env REQUIRE_CYMBAL=1 CYMBAL_BIN=(command -v cymbal) \
   node --import tsx --test test/cli-smoke.test.mjs
 ```

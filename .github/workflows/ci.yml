@@ -43,7 +43,7 @@ jobs:
         run: npm run validate
 
   cymbal-integration:
-    name: Cymbal v0.17.0 integration
+    name: Cymbal v0.18.0 integration
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -70,14 +70,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          install_dir="$RUNNER_TEMP/cymbal-v0.17.0"
-          archive="$RUNNER_TEMP/cymbal-v0.17.0.tar.gz"
+          install_dir="$RUNNER_TEMP/cymbal-v0.18.0"
+          archive="$RUNNER_TEMP/cymbal-v0.18.0.tar.gz"
           mkdir -p "$install_dir"
           curl -fsSL \
-            https://github.com/1broseidon/cymbal/releases/download/v0.17.0/cymbal_v0.17.0_linux_x86_64.tar.gz \
+            https://github.com/1broseidon/cymbal/releases/download/v0.18.0/cymbal_v0.18.0_linux_x86_64.tar.gz \
             -o "$archive"
           printf '%s  %s\n' \
-            e1a5fc4f14a27cef49273dd0ef24ea63ce37f746a798614f26fc05a273e8473f \
+            c6ff8cd58d737e004360a0d1c26d72c6bedf139c7d4602c1f0db585e783ed11d \
             "$archive" | sha256sum -c -
           tar -xzf "$archive" -C "$install_dir"
           CYMBAL_BIN="$(realpath "$install_dir/cymbal")"
@@ -90,7 +90,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$("$CYMBAL_BIN" version | sed -n '1p' | tr -d '\r')" = "cymbal v0.17.0"
+          test "$("$CYMBAL_BIN" version | sed -n '1p' | tr -d '\r')" = "cymbal v0.18.0"
           cymbal_home="$RUNNER_TEMP/pi-cymbal-home"
           mkdir -p "$cymbal_home"
           HOME="$cymbal_home" "$CYMBAL_BIN" index .

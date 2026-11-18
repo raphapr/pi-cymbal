@@ -11,6 +11,7 @@ interface RenderContext {
   lastComponent?: unknown;
   expanded: boolean;
   isError?: boolean;
+  keyHint?: (keybinding: "app.tools.expand", description: string) => string;
 }
 
 interface RenderResultOptions {
@@ -98,9 +99,10 @@ function outputSummary(result: CymbalToolResult, output: string): string {
   return lineCount === 0 ? "no output" : `${lineCount} ${lineLabel}`;
 }
 
-function expandHint(): string {
+function expandHint(context: RenderContext): string {
   try {
-    return keyHint("app.tools.expand", "to expand");
+    // Pi >= 1.5.0 passes keyHint in the render context; the imported copy may not see the user's keybindings.
+    return (context.keyHint ?? keyHint)("app.tools.expand", "to expand");
   } catch {
     return "expand for details";
   }
@@ -146,7 +148,7 @@ export function renderCymbalResult(
     outputSummary(result, output),
   ].join(" · ");
 
-  text.setText(`${theme.fg(resultColor(status, context.isError), summary)} · ${expandHint()}`);
+  text.setText(`${theme.fg(resultColor(status, context.isError), summary)} · ${expandHint(context)}`);
   return text;
 }
 

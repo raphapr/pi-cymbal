@@ -1,6 +1,9 @@
-import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { normalizePathArg, type OutputFormat } from "./cymbal.js";
+
+// pi-ai's StringEnum stopped returning a TypeBox type in Pi 1.5.0, so Type.Optional() lost its value type.
+const StringEnum = <T extends readonly string[]>(values: T, options: { description?: string } = {}) =>
+  Type.Unsafe<T[number]>({ type: "string", enum: [...values], ...options });
 
 export const FormatParam = Type.Optional(StringEnum(["agent", "json"] as const, { description: "Output format. Defaults to agent-native Cymbal output." }));
 export const GraphFormatParam = Type.Optional(StringEnum(["mermaid", "dot", "json"] as const));

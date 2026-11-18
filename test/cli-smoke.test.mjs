@@ -31,10 +31,10 @@ const cymbal = process.env.CYMBAL_BIN ?? "cymbal";
 const required = process.env.REQUIRE_CYMBAL === "1";
 const version = spawnSync(cymbal, ["version"], { encoding: "utf8" });
 const available = version.status === 0;
-const exactVersion = available && version.stdout.split(/\r?\n/, 1)[0] === "cymbal v0.17.0";
+const exactVersion = available && version.stdout.split(/\r?\n/, 1)[0] === "cymbal v0.18.0";
 
 if (required && !exactVersion) {
-  throw new Error(`REQUIRE_CYMBAL=1 but ${cymbal} is not Cymbal v0.17.0: ${version.error?.message ?? version.stdout ?? version.stderr}`);
+  throw new Error(`REQUIRE_CYMBAL=1 but ${cymbal} is not Cymbal v0.18.0: ${version.error?.message ?? version.stdout ?? version.stderr}`);
 }
 
 function run(args, options = {}) {
@@ -56,8 +56,8 @@ function containsSymbol(value, name, relPath) {
   return Object.values(value).some((entry) => containsSymbol(entry, name, relPath));
 }
 
-test("pinned Cymbal version is v0.17.0", { skip: !exactVersion }, () => {
-  assert.equal(version.stdout.split(/\r?\n/, 1)[0], "cymbal v0.17.0");
+test("pinned Cymbal version is v0.18.0", { skip: !exactVersion }, () => {
+  assert.equal(version.stdout.split(/\r?\n/, 1)[0], "cymbal v0.18.0");
 });
 
 test("every registered Cymbal command exposes help", { skip: !exactVersion }, () => {
@@ -124,7 +124,7 @@ test("cymbal search accepts quoted hyphenated symbol queries", { skip: !exactVer
   assert.doesNotMatch(result.stderr, /no such column/);
 });
 
-test("Cymbal v0.17.0 contracts in an isolated repository", { skip: !exactVersion }, async (t) => {
+test("Cymbal v0.18.0 contracts in an isolated repository", { skip: !exactVersion }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), "pi-cymbal-contract-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const cwd = join(root, "repo");
