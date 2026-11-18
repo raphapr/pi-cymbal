@@ -5,6 +5,8 @@ import { normalizePathArg, type OutputFormat } from "./cymbal.js";
 const StringEnum = <T extends readonly string[]>(values: T, options: { description?: string } = {}) =>
   Type.Unsafe<T[number]>({ type: "string", enum: [...values], ...options });
 
+export const ReadOnlyAnnotations = { readOnlyHint: true } as const;
+
 export const FormatParam = Type.Optional(StringEnum(["agent", "json"] as const, { description: "Output format. Defaults to agent-native Cymbal output." }));
 export const GraphFormatParam = Type.Optional(StringEnum(["mermaid", "dot", "json"] as const));
 export const ResolveScopeParam = Type.Optional(StringEnum(["same", "family", "all"] as const, { description: "Cross-language resolution scope. Defaults to family." }));

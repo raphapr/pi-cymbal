@@ -2,7 +2,7 @@ import { isAbsolute } from "node:path";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { normalizePathArg, runCymbal, type RunCymbalResult } from "../cymbal.js";
 import { formatCymbalBatch, formatCymbalOutput, type CymbalBatchItem, type CymbalToolResult } from "../output.js";
-import { buildShowArgs, ShowParams, type ShowArgs } from "../params.js";
+import { buildShowArgs, ReadOnlyAnnotations, ShowParams, type ShowArgs } from "../params.js";
 import { cymbalToolRenderers } from "../render.js";
 import type { ToolContext } from "./common.js";
 import { findRepoRoot, repoRootKey, resolveMultiPathRun, resolvePathFilterRun, resolvePathOperand, resolveSinglePathRun, splitPathRangeSuffix, type RepoRootFs } from "./path.js";
@@ -128,6 +128,7 @@ export function registerShowTool(pi: ExtensionAPI): void {
       parameters: ShowParams,
       promptSnippet: "cymbal_show: Read one or more symbols, files, or file ranges using Cymbal.",
       promptGuidelines: ["Use cymbal_show for targeted local reads by symbol or line range."],
+      annotations: ReadOnlyAnnotations,
       ...cymbalToolRenderers("cymbal_show"),
       async execute(_toolCallId, params: ShowArgs, signal, _onUpdate, ctx: ToolContext) {
         const targets = showTargets(params);

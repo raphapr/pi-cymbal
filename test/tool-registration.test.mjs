@@ -76,6 +76,21 @@ test("all cymbal tools define compact renderers", () => {
   }
 });
 
+test("every cymbal tool except cymbal_index is annotated read-only", () => {
+  const tools = [];
+  const pi = {
+    registerTool(tool) { tools.push(tool); },
+    registerCommand() {},
+    on() {},
+  };
+
+  extension(pi);
+
+  for (const tool of tools) {
+    assert.equal(tool.annotations?.readOnlyHint, tool.name === "cymbal_index" ? undefined : true, tool.name);
+  }
+});
+
 test("registered tool_call starts work synchronously and shutdown awaits it", async () => {
   const handlers = new Map();
   const pi = {

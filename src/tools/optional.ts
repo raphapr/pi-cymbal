@@ -10,6 +10,7 @@ import {
   buildTraceArgs,
   ContextParams,
   InvestigateParams,
+  ReadOnlyAnnotations,
   TraceParams,
   type ContextArgs,
   type InvestigateArgs,
@@ -132,6 +133,7 @@ function registerOptionalTool<Params extends { format?: OutputFormat }>(pi: Exte
       parameters: spec.parameters as never,
       promptSnippet: `${spec.name}: Optional Cymbal ${spec.command} helper. It checks command availability first.`,
       promptGuidelines: [`Use ${spec.name} only when Cymbal supports the ${spec.command} command.`],
+      annotations: ReadOnlyAnnotations,
       ...cymbalToolRenderers(spec.name),
       async execute(_toolCallId, params: Params, signal, _onUpdate, ctx: ToolContext) {
         const runner = ctx.runCymbal ?? runCymbal;

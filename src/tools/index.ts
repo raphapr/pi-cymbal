@@ -17,6 +17,7 @@ export function registerIndexTool(pi: ExtensionAPI): void {
     buildArgs: buildIndexArgs,
     resolveRun: resolveIndexRun,
     availabilityCommand: "index",
+    mutatesLocalState: true,
     promptSnippet:
       "cymbal_index: Refresh Cymbal's local index cache. Use only when index freshness is suspected or explicitly requested; local cache mutation only.",
     promptGuidelines: [

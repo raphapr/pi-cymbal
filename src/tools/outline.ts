@@ -1,7 +1,7 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { runCymbal, type OutputFormat, type RunCymbalResult } from "../cymbal.js";
 import { formatCymbalBatch, formatCymbalOutput, type CymbalBatchItem } from "../output.js";
-import { buildOutlineArgs, OutlineParams, type OutlineArgs } from "../params.js";
+import { buildOutlineArgs, OutlineParams, ReadOnlyAnnotations, type OutlineArgs } from "../params.js";
 import { cymbalToolRenderers } from "../render.js";
 import type { ToolContext } from "./common.js";
 import { resolveMultiPathRun } from "./path.js";
@@ -54,6 +54,7 @@ export function registerOutlineTool(pi: ExtensionAPI): void {
       parameters: OutlineParams,
       promptSnippet: "cymbal_outline: Inspect file structure with Cymbal before reading full files.",
       promptGuidelines: ["Use cymbal_outline before reading a whole local code file when file structure is enough."],
+      annotations: ReadOnlyAnnotations,
       ...cymbalToolRenderers("cymbal_outline"),
       async execute(_toolCallId, params: OutlineArgs, signal, _onUpdate, ctx: ToolContext) {
         if (params.files.length < 1 || params.files.length > 32) throw new RangeError("files must contain between 1 and 32 paths");
